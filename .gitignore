@@ -1,0 +1,18 @@
+# macOS
+.DS_Store
+
+# Editor
+.idea
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Claude Code (local-only)
+.claude/settings.local.json
+.claude/.credentials.json
+
+# Codex CLI (local-only)
+.codex/auth.json
+.codex/history.jsonl
+.codex/sessions/
+.codex/logs/

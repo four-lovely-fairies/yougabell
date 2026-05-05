@@ -1,0 +1,3 @@
+# Codex CLI project config
+# Docs: https://developers.openai.com/codex/config-basic
+# Inherits from ~/.codex/config.toml — overrides go here.
