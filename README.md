@@ -17,27 +17,40 @@
 | Git | 최신 |
 | `gh` CLI | 인증된 상태 권장 (`gh auth login`) |
 
-### 1. 워크스페이스 디렉토리 만들기
+### 한 번에 셋업 (권장)
+
+워크스페이스 디렉토리에서 umbrella만 먼저 클론한 뒤 부트스트랩 스크립트 실행:
 
 ```bash
-mkdir -p ~/Workspace/youth
-cd ~/Workspace/youth
+mkdir -p ~/Workspace/youth && cd ~/Workspace/youth
+git clone https://github.com/youth-corp/working-mom-dad.git
+working-mom-dad/scripts/bootstrap.sh
 ```
 
-> 디렉토리 이름은 자유. 본 문서는 `~/Workspace/youth/`를 가정.
+스크립트가 자동으로 처리하는 작업:
+1. 4개 서비스 레포(api/web/admin/mobile) 병렬 클론
+2. 워크스페이스 루트 `CLAUDE.md → working-mom-dad/CLAUDE.md` 심볼릭 링크 생성
+3. 4개 서비스 레포에서 `pnpm install` 병렬 실행
+4. 각 `.env.example` → `.env` 복사
 
-### 2. 5개 레포 클론 (병렬)
+> 이미 클론된 레포·존재하는 심볼릭 링크·기존 `.env`는 건드리지 않습니다 (idempotent).
+> 스크립트 본문: [`scripts/bootstrap.sh`](./scripts/bootstrap.sh)
+
+### 수동 셋업 (스크립트 안 쓸 때)
+
+<details>
+<summary>단계별 수동 명령</summary>
+
+#### 1. 워크스페이스 디렉토리
 
 ```bash
-gh repo clone youth-corp/working-mom-dad &
-gh repo clone youth-corp/working-mom-dad-api &
-gh repo clone youth-corp/working-mom-dad-web &
-gh repo clone youth-corp/working-mom-dad-admin &
-gh repo clone youth-corp/working-mom-dad-mobile &
-wait
+mkdir -p ~/Workspace/youth && cd ~/Workspace/youth
 ```
 
-`gh` 없이 https로:
+> 디렉토리 이름은 자유.
+
+#### 2. 5개 레포 클론 (병렬)
+
 ```bash
 for r in working-mom-dad working-mom-dad-api working-mom-dad-web working-mom-dad-admin working-mom-dad-mobile; do
   git clone "https://github.com/youth-corp/$r.git" &
@@ -45,20 +58,16 @@ done
 wait
 ```
 
-### 3. 워크스페이스 루트 심볼릭 링크
-
-워크스페이스 루트에서 사이블링 레포(api/web/admin/mobile)에서 작업 시 **부모 traversal로 umbrella 컨텍스트가 잡히도록** 심볼릭 링크를 만듭니다:
+#### 3. 워크스페이스 루트 심볼릭 링크
 
 ```bash
-cd ~/Workspace/youth
 ln -s working-mom-dad/CLAUDE.md CLAUDE.md
 ```
 
-> Claude Code: 워크스페이스 루트의 `CLAUDE.md` 심볼릭 링크 → umbrella의 `CLAUDE.md` → `@AGENTS.md` import 체인으로 컨텍스트 로드.
->
+> Claude Code: 워크스페이스 루트의 `CLAUDE.md` 심볼릭 링크 → umbrella `CLAUDE.md` → `@AGENTS.md` import 체인으로 컨텍스트 로드.
 > Codex: 각 레포의 `AGENTS.md`만 읽으므로 심볼릭 링크는 무관.
 
-### 4. 의존성 설치 (5 레포 일괄)
+#### 4. 의존성 설치
 
 ```bash
 for r in working-mom-dad-api working-mom-dad-web working-mom-dad-admin working-mom-dad-mobile; do
@@ -67,17 +76,17 @@ done
 wait
 ```
 
-> `working-mom-dad`(umbrella)는 코드가 없어 `pnpm install` 불필요.
-
-### 5. 환경 변수
-
-각 레포의 `.env.example`을 `.env`(혹은 web/admin은 `.env.local`)로 복사한 뒤 채워 넣습니다.
+#### 5. 환경 변수
 
 ```bash
 for r in working-mom-dad-api working-mom-dad-web working-mom-dad-admin working-mom-dad-mobile; do
   cp "$r/.env.example" "$r/.env" 2>/dev/null || true
 done
 ```
+
+</details>
+
+### 환경 변수 채우기
 
 | 레포 | 필수 키 |
 |---|---|
@@ -88,7 +97,7 @@ done
 
 > Supabase 프로젝트 자격증명은 별도 채널로 공유. 레포에 push 금지.
 
-### 6. 개발 서버 실행
+### 개발 서버 실행
 
 | 레포 | 명령 | 포트 |
 |---|---|---|
