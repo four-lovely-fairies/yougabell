@@ -1,4 +1,4 @@
-# Working Mom Dad
+# 육아밸
 
 > 워킹맘/워킹대디를 위한 육아 정보·기록·AI 챗봇 서비스.
 > 본 레포는 **워크스페이스 umbrella** — 5개 분리 레포의 인덱스/큰 그림만 보관합니다.
@@ -23,13 +23,13 @@
 
 ```bash
 mkdir -p ~/Workspace/youth && cd ~/Workspace/youth
-git clone https://github.com/youth-corp/working-mom-dad.git
-working-mom-dad/scripts/bootstrap.sh
+git clone https://github.com/four-lovely-fairies/yougabell.git
+yougabell/scripts/bootstrap.sh
 ```
 
 스크립트가 자동으로 처리하는 작업:
 1. 4개 서비스 레포(api/web/admin/mobile) 병렬 클론
-2. 워크스페이스 루트 `CLAUDE.md → working-mom-dad/CLAUDE.md` 심볼릭 링크 생성
+2. 워크스페이스 루트 `CLAUDE.md → yougabell/CLAUDE.md` 심볼릭 링크 생성
 3. 4개 서비스 레포에서 `pnpm install` 병렬 실행
 4. 각 `.env.example` → `.env` 복사
 
@@ -52,8 +52,8 @@ mkdir -p ~/Workspace/youth && cd ~/Workspace/youth
 #### 2. 5개 레포 클론 (병렬)
 
 ```bash
-for r in working-mom-dad working-mom-dad-api working-mom-dad-web working-mom-dad-admin working-mom-dad-mobile; do
-  git clone "https://github.com/youth-corp/$r.git" &
+for r in yougabell yougabell-api yougabell-web yougabell-admin yougabell-mobile; do
+  git clone "https://github.com/four-lovely-fairies/$r.git" &
 done
 wait
 ```
@@ -61,7 +61,7 @@ wait
 #### 3. 워크스페이스 루트 심볼릭 링크
 
 ```bash
-ln -s working-mom-dad/CLAUDE.md CLAUDE.md
+ln -s yougabell/CLAUDE.md CLAUDE.md
 ```
 
 > Claude Code: 워크스페이스 루트의 `CLAUDE.md` 심볼릭 링크 → umbrella `CLAUDE.md` → `@AGENTS.md` import 체인으로 컨텍스트 로드.
@@ -70,7 +70,7 @@ ln -s working-mom-dad/CLAUDE.md CLAUDE.md
 #### 4. 의존성 설치
 
 ```bash
-for r in working-mom-dad-api working-mom-dad-web working-mom-dad-admin working-mom-dad-mobile; do
+for r in yougabell-api yougabell-web yougabell-admin yougabell-mobile; do
   (cd "$r" && pnpm install) &
 done
 wait
@@ -79,7 +79,7 @@ wait
 #### 5. 환경 변수
 
 ```bash
-for r in working-mom-dad-api working-mom-dad-web working-mom-dad-admin working-mom-dad-mobile; do
+for r in yougabell-api yougabell-web yougabell-admin yougabell-mobile; do
   cp "$r/.env.example" "$r/.env" 2>/dev/null || true
 done
 ```
@@ -112,27 +112,27 @@ done
 
 ```
 ~/Workspace/youth/
-├── CLAUDE.md → working-mom-dad/CLAUDE.md  (심볼릭 링크)
-├── working-mom-dad/                       (umbrella, 본 레포)
+├── CLAUDE.md → yougabell/CLAUDE.md  (심볼릭 링크)
+├── yougabell/                       (umbrella, 본 레포)
 │   ├── AGENTS.md
 │   ├── CLAUDE.md
 │   └── README.md  ← 지금 보고 있는 문서
-├── working-mom-dad-api/                   (NestJS + Prisma, anchor)
+├── yougabell-api/                   (NestJS + Prisma, anchor)
 │   ├── AGENTS.md
 │   ├── CLAUDE.md
 │   ├── docs/
 │   │   ├── design/00-repo-strategy.md
 │   │   └── schema/                        (도메인 스키마 11개)
 │   └── prisma/schema.prisma               (DB 진실의 소스)
-├── working-mom-dad-web/                   (Next.js, Vercel)
+├── yougabell-web/                   (Next.js, Vercel)
 │   ├── AGENTS.md
 │   ├── CLAUDE.md
 │   └── DESIGN.md
-├── working-mom-dad-admin/                 (Next.js, Vercel)
+├── yougabell-admin/                 (Next.js, Vercel)
 │   ├── AGENTS.md
 │   ├── CLAUDE.md
 │   └── DESIGN.md
-└── working-mom-dad-mobile/                (Expo, EAS)
+└── yougabell-mobile/                (Expo, EAS)
     ├── AGENTS.md
     ├── CLAUDE.md
     └── DESIGN.md
@@ -143,5 +143,5 @@ done
 ## 더 알아보기
 
 - 워크스페이스 큰 그림·아키텍처·결정 사항: [`AGENTS.md`](./AGENTS.md)
-- 도메인 스키마 11개: [`working-mom-dad-api/docs/schema/`](https://github.com/youth-corp/working-mom-dad-api/tree/main/docs/schema)
-- 레포 전략·DB·인증 결정: [`working-mom-dad-api/docs/design/00-repo-strategy.md`](https://github.com/youth-corp/working-mom-dad-api/blob/main/docs/design/00-repo-strategy.md)
+- 도메인 스키마 11개: [`yougabell-api/docs/schema/`](https://github.com/four-lovely-fairies/yougabell-api/tree/main/docs/schema)
+- 레포 전략·DB·인증 결정: [`yougabell-api/docs/design/00-repo-strategy.md`](https://github.com/four-lovely-fairies/yougabell-api/blob/main/docs/design/00-repo-strategy.md)

@@ -1,11 +1,11 @@
-# Youth — Working Mom Dad
+# 육아밸 (yougabell)
 
-> **조직**: Youth (GitHub org: [`youth-corp`](https://github.com/youth-corp))
-> **제품/앱 이름**: Working Mom Dad
-> 본 레포([`working-mom-dad`](https://github.com/youth-corp/working-mom-dad))는 **워크스페이스 umbrella** — 큰 그림·레포 인덱스만 보관.
+> **GitHub 조직**: [`four-lovely-fairies`](https://github.com/four-lovely-fairies)
+> **제품/앱 이름**: 육아밸 (영문 식별자: `yougabell`)
+> 본 레포([`yougabell`](https://github.com/four-lovely-fairies/yougabell))는 **워크스페이스 umbrella** — 큰 그림·레포 인덱스만 보관.
 > 워킹맘/워킹대디를 위한 육아 정보 검색·기록 서비스.
 > 사용자가 입력한 아이 정보(연령, 발달 단계, 알레르기 등)를 기반으로 AI 챗봇이 맞춤 답변을 제공한다.
-> 현재 기획·디자인 초안 단계 (2026-05-04 기준).
+> 현재 기획·디자인 초안 단계 (2026-05-06 기준).
 
 ---
 
@@ -50,26 +50,26 @@ flowchart TB
 
 ## 리포지토리 구성
 
-워크스페이스 루트(예: `~/Workspace/youth/`)는 **`youth-corp` 조직 산하 5개 레포**를 호스팅하는 상위 디렉토리다.
+워크스페이스 루트(예: `~/Workspace/youth/`)는 **`four-lovely-fairies` 조직 산하 5개 레포**를 호스팅하는 상위 디렉토리다.
 이 `AGENTS.md`(+ 얇은 `CLAUDE.md`)는 본 umbrella 레포에서 관리되며, 워크스페이스 루트에 심볼릭 링크로 노출된다 (셋업 가이드는 [`README.md`](./README.md)).
 
 | GitHub 레포 | 역할 | 스택 | 호스팅 |
 |---|---|---|---|
-| [`working-mom-dad`](https://github.com/youth-corp/working-mom-dad) (umbrella) | 워크스페이스 인덱스 (이 문서) | — | — |
-| [`working-mom-dad-api`](https://github.com/youth-corp/working-mom-dad-api) | 도메인 API · 챗봇 · LLM 게이트웨이 (anchor) | NestJS, Prisma, TS | TBD |
-| [`working-mom-dad-web`](https://github.com/youth-corp/working-mom-dad-web) | 사용자용 웹 (Expo WebView 타깃) | Next.js 16, Tailwind, TS | Vercel |
-| [`working-mom-dad-admin`](https://github.com/youth-corp/working-mom-dad-admin) | 운영자 CMS | Next.js 16, Tailwind, TS | Vercel |
-| [`working-mom-dad-mobile`](https://github.com/youth-corp/working-mom-dad-mobile) | RN 셸 (푸시·인증·WebView 컨테이너) | Expo, TS | EAS |
+| [`yougabell`](https://github.com/four-lovely-fairies/yougabell) (umbrella) | 워크스페이스 인덱스 (이 문서) | — | — |
+| [`yougabell-api`](https://github.com/four-lovely-fairies/yougabell-api) | 도메인 API · 챗봇 · LLM 게이트웨이 (anchor) | NestJS, Prisma, TS | TBD |
+| [`yougabell-web`](https://github.com/four-lovely-fairies/yougabell-web) | 사용자용 웹 (Expo WebView 타깃) | Next.js 16, Tailwind, TS | Vercel |
+| [`yougabell-admin`](https://github.com/four-lovely-fairies/yougabell-admin) | 운영자 CMS | Next.js 16, Tailwind, TS | Vercel |
+| [`yougabell-mobile`](https://github.com/four-lovely-fairies/yougabell-mobile) | RN 셸 (푸시·인증·WebView 컨테이너) | Expo, TS | EAS |
 
 > 타입 공유는 별도 패키지 대신 **NestJS OpenAPI 스펙 → 클라이언트 코드젠**(web/admin/mobile)으로 처리.
-> 도메인 스키마·아키텍처 상세는 **anchor 레포**(`working-mom-dad-api`)에 보관:
-> - 레포 전략: [`docs/design/00-repo-strategy.md`](https://github.com/youth-corp/working-mom-dad-api/blob/main/docs/design/00-repo-strategy.md)
-> - 도메인 스키마 11개: [`docs/schema/`](https://github.com/youth-corp/working-mom-dad-api/tree/main/docs/schema)
+> 도메인 스키마·아키텍처 상세는 **anchor 레포**(`yougabell-api`)에 보관:
+> - 레포 전략: [`docs/design/00-repo-strategy.md`](https://github.com/four-lovely-fairies/yougabell-api/blob/main/docs/design/00-repo-strategy.md)
+> - 도메인 스키마 11개: [`docs/schema/`](https://github.com/four-lovely-fairies/yougabell-api/tree/main/docs/schema)
 
 ### Umbrella vs Anchor
 
-- **Umbrella** (`working-mom-dad`): 워크스페이스 큰 그림, 레포 인덱스, 결정 사항 체크리스트. 작업 시작 시 가장 먼저 보는 곳.
-- **Anchor** (`working-mom-dad-api`): 도메인 진실의 소스 — Prisma schema, 도메인 문서, OpenAPI 스펙 export. 코드 작업의 출발점.
+- **Umbrella** (`yougabell`): 워크스페이스 큰 그림, 레포 인덱스, 결정 사항 체크리스트. 작업 시작 시 가장 먼저 보는 곳.
+- **Anchor** (`yougabell-api`): 도메인 진실의 소스 — Prisma schema, 도메인 문서, OpenAPI 스펙 export. 코드 작업의 출발점.
 
 ---
 
@@ -149,7 +149,7 @@ docs: 레포 전략 문서에 Supabase Auth 결정 반영
 
 - [x] 기획 초안
 - [x] 디자인 초안
-- [x] 레포 구조 확정 → anchor 레포(`working-mom-dad-api`)에 docs 통합 + umbrella 레포 추가
+- [x] 레포 구조 확정 → anchor 레포(`yougabell-api`)에 docs 통합 + umbrella 레포 추가
 - [x] GitHub 레포 5개 생성 (umbrella + api/web/admin/mobile)
 - [x] 4개 서비스 레포 메타 파일 셋업 + main 푸시
 - [x] 인증 방식 확정 — **Supabase Auth**
@@ -157,7 +157,7 @@ docs: 레포 전략 문서에 Supabase Auth 결정 반영
 - [x] **Next.js 16 웹 본격 부트스트랩** (Tailwind 4, App Router)
 - [x] **Next.js 16 어드민 본격 부트스트랩** (Tailwind 4, App Router)
 - [x] **Expo SDK 54 본격 부트스트랩** (expo-router)
-- [x] **Prisma 7 + 도메인 스키마 30+ 테이블 작성** (`working-mom-dad-api/prisma/schema.prisma`)
+- [x] **Prisma 7 + 도메인 스키마 30+ 테이블 작성** (`yougabell-api/prisma/schema.prisma`)
 - [x] AGENTS.md / CLAUDE.md / DESIGN.md 듀얼 셋업 (5개 레포)
 - [ ] Supabase 프로젝트 생성 (dev)
 - [ ] NestJS 호스팅 결정 (Fly.io 추천 / Railway / Render)

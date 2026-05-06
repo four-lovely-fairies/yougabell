@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# bootstrap.sh — Working Mom Dad 워크스페이스 셋업 스크립트
+# bootstrap.sh — 육아밸 워크스페이스 셋업 스크립트
 #
 # 동작:
 #   1. umbrella 레포의 부모 디렉토리(워크스페이스)를 작업 위치로 결정
 #   2. 4개 서비스 레포(api/web/admin/mobile)를 병렬 클론 (이미 있으면 skip)
-#   3. 워크스페이스 루트에 CLAUDE.md → working-mom-dad/CLAUDE.md 심볼릭 링크 생성
+#   3. 워크스페이스 루트에 CLAUDE.md → yougabell/CLAUDE.md 심볼릭 링크 생성
 #   4. 4개 서비스 레포에서 `pnpm install` 병렬 실행
 #   5. 각 레포의 `.env.example` → `.env` 복사 (이미 있으면 skip)
 #
 # 사용법:
-#   git clone https://github.com/youth-corp/working-mom-dad.git
-#   cd working-mom-dad
+#   git clone https://github.com/four-lovely-fairies/yougabell.git
+#   cd yougabell
 #   ./scripts/bootstrap.sh
 #
 # 사전 요구사항: git, pnpm (또는 corepack), 선택적으로 gh CLI (없으면 https로 fallback)
@@ -23,18 +23,18 @@ UMBRELLA_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 WORKSPACE_DIR="$(cd "$UMBRELLA_DIR/.." && pwd)"
 
 # umbrella 레포 안에서 실행되는지 검증
-if [ ! -f "$UMBRELLA_DIR/AGENTS.md" ] || [ "$(basename "$UMBRELLA_DIR")" != "working-mom-dad" ]; then
-  echo "✗ 이 스크립트는 working-mom-dad(umbrella) 레포 안에서 실행해야 합니다."
+if [ ! -f "$UMBRELLA_DIR/AGENTS.md" ] || [ "$(basename "$UMBRELLA_DIR")" != "yougabell" ]; then
+  echo "✗ 이 스크립트는 yougabell(umbrella) 레포 안에서 실행해야 합니다."
   echo "  현재 위치: $UMBRELLA_DIR"
   exit 1
 fi
 
-ORG="youth-corp"
+ORG="four-lovely-fairies"
 REPOS=(
-  "working-mom-dad-api"
-  "working-mom-dad-web"
-  "working-mom-dad-admin"
-  "working-mom-dad-mobile"
+  "yougabell-api"
+  "yougabell-web"
+  "yougabell-admin"
+  "yougabell-mobile"
 )
 
 echo "▸ 워크스페이스: $WORKSPACE_DIR"
@@ -90,8 +90,8 @@ if [ -L "CLAUDE.md" ]; then
 elif [ -e "CLAUDE.md" ]; then
   echo "  ⚠ CLAUDE.md가 일반 파일로 존재. 충돌 방지를 위해 건드리지 않음."
 else
-  ln -s "working-mom-dad/CLAUDE.md" "CLAUDE.md"
-  echo "  ✓ 생성: CLAUDE.md → working-mom-dad/CLAUDE.md"
+  ln -s "yougabell/CLAUDE.md" "CLAUDE.md"
+  echo "  ✓ 생성: CLAUDE.md → yougabell/CLAUDE.md"
 fi
 echo ""
 
@@ -135,19 +135,19 @@ cat <<EOF
 ▸ 셋업 완료. 다음 단계:
 
   1. 각 레포의 .env에 실제 값 채우기:
-     - working-mom-dad-api/.env  : DATABASE_URL, DIRECT_URL, SUPABASE_*, JWT_SECRET, LLM keys
-     - working-mom-dad-web/.env  : NEXT_PUBLIC_SUPABASE_*, NEXT_PUBLIC_API_BASE_URL
-     - working-mom-dad-admin/.env: 위와 동일 + SUPABASE_SERVICE_ROLE_KEY
-     - working-mom-dad-mobile/.env: EXPO_PUBLIC_*
+     - yougabell-api/.env  : DATABASE_URL, DIRECT_URL, SUPABASE_*, JWT_SECRET, LLM keys
+     - yougabell-web/.env  : NEXT_PUBLIC_SUPABASE_*, NEXT_PUBLIC_API_BASE_URL
+     - yougabell-admin/.env: 위와 동일 + SUPABASE_SERVICE_ROLE_KEY
+     - yougabell-mobile/.env: EXPO_PUBLIC_*
 
   2. (api 한정) Prisma 클라이언트 생성:
-     cd working-mom-dad-api && pnpm prisma:generate
+     cd yougabell-api && pnpm prisma:generate
 
   3. 개발 서버 실행 (각 터미널에서):
-     cd working-mom-dad-api    && pnpm start:dev    # :3000
-     cd working-mom-dad-web    && pnpm dev          # :3001 (PORT=3001 권장)
-     cd working-mom-dad-admin  && pnpm dev          # :3002 (PORT=3002 권장)
-     cd working-mom-dad-mobile && pnpm start        # Metro :8081
+     cd yougabell-api    && pnpm start:dev    # :3000
+     cd yougabell-web    && pnpm dev          # :3001 (PORT=3001 권장)
+     cd yougabell-admin  && pnpm dev          # :3002 (PORT=3002 권장)
+     cd yougabell-mobile && pnpm start        # Metro :8081
 
-  자세한 안내: working-mom-dad/README.md, working-mom-dad/AGENTS.md
+  자세한 안내: yougabell/README.md, yougabell/AGENTS.md
 EOF
