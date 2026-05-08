@@ -625,9 +625,71 @@ mobile handleWebMessage
 
 ---
 
-## 8. 구현 결과 (구현 완료 후 채움)
+## 8. Phase별 작업 todo
+
+> 진행 시 `- [ ]` → `- [x]`로 갱신. PR 머지 시 본 섹션을 진행 추적의 단일 소스로.
+
+### Phase 0 — 기획 확정 (선행)
+
+- [ ] 인트로 화면 디자인 확정 (캐러셀 vs 단일, 점 의미)
+- [ ] 앱 사용 시간대 화면 새 디자인 수령 — UX 매트릭스 대안
+- [ ] 직장 유무 라벨에 "(선택)" 표기 적용 또는 별표 제거 (디자이너 작업)
+- [ ] 직장 유무 완전 제거 가능성 검토 (기획 결정)
+
+### Phase 1 — `yougabell-api` (선행, 다른 레포 시작 차단)
+
+- [ ] Prisma schema 갱신: `User.workStatus`, `User.onboardedAt`, `UserAppUsageSlot`, enum 3종
+- [ ] 마이그레이션 실행 (`pnpm prisma:migrate:dev --name onboarding_v2`)
+- [ ] `OnboardingModule` + `OnboardingController` (`POST /onboarding/complete`)
+- [ ] `CompleteOnboardingDto` + `class-validator` 룰 적용
+- [ ] 트랜잭션 처리 (`prisma.$transaction` + 멱등성 `409` 응답)
+- [ ] `GET /me` 응답에 `onboardedAt`/`workStatus`/`children`/`appUsageSlots` 포함
+- [ ] `OnboardingCompleteGuard` (화이트리스트 + `403 ONBOARDING_REQUIRED`)
+- [ ] OpenAPI 스펙 export 갱신
+
+### Phase 2 — `yougabell-web` (api 완료 후)
+
+- [ ] `app/(onboarding)/` route group + layout
+- [ ] 5개 페이지: `intro`, `parent`, `children`, `app-usage`, `done`
+- [ ] `OnboardingDraft` 타입 + `useOnboardingDraft()` 훅
+- [ ] 컴포넌트 5종: `IntroScreen`, `DateTriple`, `SegmentedToggle`, `ChildCard`, `AppUsageMatrix`
+- [ ] `submitOnboarding()` 헬퍼 (draft → API payload 변환)
+- [ ] `notifyMobile()` 헬퍼 (`window.ReactNativeWebView.postMessage`)
+- [ ] `middleware.ts` — `me.onboardedAt` 분기 (미완료 → /onboarding, 완료자 → /)
+- [ ] 재개 다이얼로그 ("이어서 작성하기 / 처음부터")
+- [ ] 분석 이벤트 5종 발사
+
+### Phase 3 — `yougabell-mobile` (web 후속, 또는 web와 병행)
+
+- [ ] `react-native-webview` 컨테이너 (`sharedCookiesEnabled`, `domStorageEnabled`)
+- [ ] `injectedJavaScriptBeforeContentLoaded`로 `__YOUGABELL_NATIVE__` 플래그 주입
+- [ ] `handleWebMessage` (3종 type 처리: `ONBOARDING_COMPLETE` / `REQUEST_PUSH_PERMISSION` / `LOGOUT`)
+- [ ] `requestPushPermission` (expo-notifications)
+- [ ] `expo_push_token` 서버 등록 (별도 endpoint — 본 기획 외)
+- [ ] Android `BackHandler` + WebView `canGoBack()` 처리
+
+### Phase 4 — `yougabell-admin` (선택, 추후)
+
+- [ ] 사용자 상세 화면에 `workStatus`(nullable) / `appUsageSlots` 표시
+- [ ] 개인정보 마스킹 룰 적용
+- [ ] (선택) 검색 필터에 `workStatus`/`onboardedAt` 추가
+
+### Phase 5 — 통합 검증
+
+- [ ] 골든 패스: 가입 → 온보딩 4단계 → 홈
+- [ ] 중도 이탈 → 같은 디바이스 재진입 시 draft 복원
+- [ ] 다른 디바이스에서 진입 시 처음부터 시작
+- [ ] `409` 멱등 처리: 이미 완료자 재호출 시 홈으로 강제
+- [ ] 네트워크 실패 시 draft 유지 + 재시도
+- [ ] 푸시 권한 거부 케이스 (홈 진행, 후속 배너로 재요청)
+- [ ] 자녀 0명 제출 시 400 차단 (web 사전 + api 사후)
+- [ ] mobile WebView에서 web `__YOUGABELL_NATIVE__` 플래그 인식 확인
+
+---
+
+## 9. 구현 결과 (구현 완료 후 채움)
 
 - 관련 PR: [`api#…`], [`web#…`], [`admin#…`], [`mobile#…`]
-- 마이그레이션 이름: `onboarding_v2_work_status_availability`
+- 마이그레이션 이름: `onboarding_v2`
 - 스펙 변경점: …
 - 후속 과제: —
