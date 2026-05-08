@@ -10,12 +10,12 @@
 
 ### 사전 요구사항
 
-| 도구 | 버전 |
-|---|---|
-| Node | 24 LTS (`.nvmrc` 참조, `nvm install 24 && nvm use 24`) |
-| pnpm | 10.x (`corepack enable && corepack prepare pnpm@latest --activate`) |
-| Git | 최신 |
-| `gh` CLI | 인증된 상태 권장 (`gh auth login`) |
+| 도구     | 버전                                                                |
+| -------- | ------------------------------------------------------------------- |
+| Node     | 24 LTS (`.nvmrc` 참조, `nvm install 24 && nvm use 24`)              |
+| pnpm     | 10.x (`corepack enable && corepack prepare pnpm@latest --activate`) |
+| Git      | 최신                                                                |
+| `gh` CLI | 인증된 상태 권장 (`gh auth login`)                                  |
 
 ### 한 번에 셋업 (권장)
 
@@ -28,6 +28,7 @@ yougabell/scripts/bootstrap.sh
 ```
 
 스크립트가 자동으로 처리하는 작업:
+
 1. 4개 서비스 레포(api/web/admin/mobile) 병렬 클론
 2. 워크스페이스 루트 `CLAUDE.md → yougabell/CLAUDE.md` 심볼릭 링크 생성
 3. 4개 서비스 레포에서 `pnpm install` 병렬 실행
@@ -88,23 +89,23 @@ done
 
 ### 환경 변수 채우기
 
-| 레포 | 필수 키 |
-|---|---|
-| api | `DATABASE_URL` (Supabase pooled 6543), `DIRECT_URL` (5432), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` |
-| web | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_API_BASE_URL` |
-| admin | 동일 + `SUPABASE_SERVICE_ROLE_KEY` (서버 전용) |
-| mobile | `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_API_BASE_URL` |
+| 레포   | 필수 키                                                                                                                        |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| api    | `DATABASE_URL` (Supabase pooled 6543), `DIRECT_URL` (5432), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` |
+| web    | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_API_BASE_URL`                                        |
+| admin  | 동일 + `SUPABASE_SERVICE_ROLE_KEY` (서버 전용)                                                                                 |
+| mobile | `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_API_BASE_URL`                                        |
 
 > Supabase 프로젝트 자격증명은 별도 채널로 공유. 레포에 push 금지.
 
 ### 개발 서버 실행
 
-| 레포 | 명령 | 포트 |
-|---|---|---|
-| api | `pnpm start:dev` | 3000 |
-| web | `pnpm dev` | 3001 (`PORT=3001 pnpm dev`) |
-| admin | `pnpm dev` | 3002 (`PORT=3002 pnpm dev`) |
-| mobile | `pnpm start` | Metro 8081 |
+| 레포   | 명령             | 포트                        |
+| ------ | ---------------- | --------------------------- |
+| api    | `pnpm start:dev` | 3000                        |
+| web    | `pnpm dev`       | 3001 (`PORT=3001 pnpm dev`) |
+| admin  | `pnpm dev`       | 3002 (`PORT=3002 pnpm dev`) |
+| mobile | `pnpm start`     | Metro 8081                  |
 
 ---
 
@@ -113,17 +114,18 @@ done
 ```
 ~/Workspace/youth/
 ├── CLAUDE.md → yougabell/CLAUDE.md  (심볼릭 링크)
-├── yougabell/                       (umbrella, 본 레포)
+├── yougabell/                       (umbrella — 기획·결정의 진실의 소스)
 │   ├── AGENTS.md
 │   ├── CLAUDE.md
-│   └── README.md  ← 지금 보고 있는 문서
-├── yougabell-api/                   (NestJS + Prisma, anchor)
+│   ├── README.md  ← 지금 보고 있는 문서
+│   └── docs/
+│       ├── design/00-repo-strategy.md     (레포 전략·DB·인증 결정)
+│       ├── schema/                        (도메인 스키마 11개)
+│       └── features/                      (기능 기획서 — 신규 기능은 여기서 시작)
+├── yougabell-api/                   (NestJS + Prisma — 구현 anchor)
 │   ├── AGENTS.md
 │   ├── CLAUDE.md
-│   ├── docs/
-│   │   ├── design/00-repo-strategy.md
-│   │   └── schema/                        (도메인 스키마 11개)
-│   └── prisma/schema.prisma               (DB 진실의 소스)
+│   └── prisma/schema.prisma               (DB 코드의 진실의 소스)
 ├── yougabell-web/                   (Next.js, Vercel)
 │   ├── AGENTS.md
 │   ├── CLAUDE.md
@@ -143,5 +145,6 @@ done
 ## 더 알아보기
 
 - 워크스페이스 큰 그림·아키텍처·결정 사항: [`AGENTS.md`](./AGENTS.md)
-- 도메인 스키마 11개: [`yougabell-api/docs/schema/`](https://github.com/four-lovely-fairies/yougabell-api/tree/main/docs/schema)
-- 레포 전략·DB·인증 결정: [`yougabell-api/docs/design/00-repo-strategy.md`](https://github.com/four-lovely-fairies/yougabell-api/blob/main/docs/design/00-repo-strategy.md)
+- 도메인 스키마 11개: [`docs/schema/`](./docs/schema)
+- 레포 전략·DB·인증 결정: [`docs/design/00-repo-strategy.md`](./docs/design/00-repo-strategy.md)
+- 기능 기획서: [`docs/features/`](./docs/features) — 새 기능은 본 디렉토리에서 기획 시작
