@@ -2,6 +2,8 @@
 
 > 새 기능은 본 디렉토리에서 **먼저 기획**하고, 그 후 각 서비스 레포(`yougabell-api`/`web`/`admin`/`mobile`)에서 구현한다.
 > umbrella가 **기획·결정의 진실의 소스**, 각 레포는 **구현의 진실의 소스**.
+>
+> **작성 룰은 [`AGENTS.md`](./AGENTS.md) 참조** (multi-repo 영향 식별, 필수 섹션, Phase별 todo, API 계약 작성 룰 등).
 
 ---
 
