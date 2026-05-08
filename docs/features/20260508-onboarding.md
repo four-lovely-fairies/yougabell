@@ -81,7 +81,464 @@ v2 인트로 구성(화면 수·내용)은 **미정** — 와이어프레임의 
 |                    | **재개 UX** — `/(onboarding)/intro` 진입 시 draft 존재하면 "이어서 작성하기 / 처음부터" 다이얼로그                                                                         | api 후속     |
 |                    | 미들웨어 — 인증된 사용자 중 `me.onboardedAt == null`이면 `/(onboarding)/...` 외 차단                                                                                       | api 후속     |
 | `yougabell-admin`  | 운영자 화면에서 `workStatus`(nullable), `appUsageSlots` 표시(읽기 전용, 마스킹 룰 따름)                                                                                    | api 후속     |
-| `yougabell-mobile` | 첫 실행 → WebView로 web `/(onboarding)/intro` 진입. 푸시 권한 요청은 온보딩 종료 후                                                                                        | web 후속     |
+| `yougabell-mobile` | WebView 컨테이너 + 인증 토큰 브릿지 + `ONBOARDING_COMPLETE` postMessage 수신 후 푸시 권한 요청                                                                             | api/web 병행 |
+
+---
+
+### 4.1 yougabell-api 상세 스펙
+
+#### Prisma schema diff (`yougabell-api/prisma/schema.prisma`)
+
+```prisma
+// User에 필드 추가
+model User {
+  // ... 기존 필드 유지
+  workStatus    WorkStatus?            // nullable (선택 입력)
+  onboardedAt   DateTime?              // nullable. 온보딩 완료 시각 1회 기록
+  appUsageSlots UserAppUsageSlot[]
+}
+
+// 신규 enum
+enum WorkStatus {
+  WORKING               // "일을 하고 있어요"
+  FULL_TIME_CAREGIVER   // "전업 가정인이에요"
+}
+
+// 신규 테이블
+model UserAppUsageSlot {
+  id        String    @id @default(uuid())
+  userId   String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dayOfWeek DayOfWeek
+  slot      TimeSlot
+  createdAt DateTime  @default(now())
+
+  @@unique([userId, dayOfWeek, slot])
+  @@index([userId])
+}
+
+enum DayOfWeek {
+  MON
+  TUE
+  WED
+  THU
+  FRI
+  SAT
+  SUN
+}
+
+enum TimeSlot {
+  MORNING    // 06:00–12:00
+  AFTERNOON  // 12:00–18:00
+  EVENING    // 18:00–24:00
+  NIGHT      // 00:00–06:00
+  ALL_DAY
+}
+```
+
+- 마이그레이션: `pnpm prisma:migrate:dev --name onboarding_v2`
+- `Child` 모델은 변경 없음 (이미 `notes` 자유 텍스트 필드 보유)
+
+#### 엔드포인트 — `POST /onboarding/complete`
+
+**인증**: `Authorization: Bearer <Supabase JWT>` 필수. `JwtAuthGuard`로 검증.
+
+**Request body** (`CompleteOnboardingDto`):
+
+```typescript
+{
+  parent: {
+    name: string;            // required, 1~30자
+    birthDate: string;       // required, "YYYY-MM-DD"
+    gender: 'female' | 'male'; // required
+    workStatus?: 'working' | 'full_time_caregiver' | null; // optional
+  };
+  children: Array<{          // required, 최소 1개
+    name: string;            // required, 1~30자
+    birthDate: string;       // required, "YYYY-MM-DD"
+    gender: 'female' | 'male'; // required
+    notes?: string;          // optional, 자유 텍스트, 최대 1000자
+  }>;
+  appUsage: Array<{          // required (빈 배열 허용 여부는 디자인 확정 후)
+    dayOfWeek: 'MON'|'TUE'|'WED'|'THU'|'FRI'|'SAT'|'SUN';
+    slot: 'MORNING'|'AFTERNOON'|'EVENING'|'NIGHT'|'ALL_DAY';
+  }>;
+}
+```
+
+**검증 룰** (`class-validator` 사용):
+
+- `parent.name`: `@IsString() @Length(1,30)`
+- `parent.birthDate`: `@IsDateString()`. 미래 날짜 거부, 1900-01-01 이후
+- `parent.gender`: `@IsIn(['female','male'])`
+- `parent.workStatus`: `@IsOptional() @IsIn([...])`
+- `children`: `@IsArray() @ArrayMinSize(1) @ValidateNested({ each: true })`
+- `children[].notes`: `@IsOptional() @IsString() @MaxLength(1000)`
+- `appUsage`: `@IsArray() @ValidateNested({ each: true })`
+- `appUsage[]` 중복 (`dayOfWeek + slot` 조합): API에서 dedupe 후 insert (UNIQUE 제약 의존하지 않음)
+
+**처리 로직** (Prisma 트랜잭션 — atomic):
+
+```typescript
+await prisma.$transaction(async (tx) => {
+  // 1. 멱등성: 이미 완료한 사용자는 409
+  const user = await tx.user.findUniqueOrThrow({ where: { id: userId } });
+  if (user.onboardedAt)
+    throw new ConflictException({
+      code: "ONBOARDING_ALREADY_COMPLETED",
+      onboardedAt: user.onboardedAt,
+    });
+
+  // 2. User 갱신 (parent 정보 + workStatus + onboardedAt)
+  await tx.user.update({
+    where: { id: userId },
+    data: {
+      name: dto.parent.name,
+      birthDate: new Date(dto.parent.birthDate),
+      gender: dto.parent.gender,
+      workStatus: dto.parent.workStatus ?? null,
+      onboardedAt: new Date(),
+    },
+  });
+
+  // 3. Child[] insert
+  await tx.child.createMany({
+    data: dto.children.map((c) => ({
+      userId,
+      name: c.name,
+      birthDate: new Date(c.birthDate),
+      gender: c.gender,
+      notes: c.notes ?? null,
+    })),
+  });
+
+  // 4. UserAppUsageSlot[] insert (dedupe 후)
+  const slots = dedupe(dto.appUsage);
+  await tx.userAppUsageSlot.createMany({
+    data: slots.map((s) => ({ userId, dayOfWeek: s.dayOfWeek, slot: s.slot })),
+  });
+});
+```
+
+**Response 200** — 갱신된 `me` 객체 그대로 반환 (클라이언트가 별도 GET /me 호출 안 해도 됨):
+
+```typescript
+{
+  id: string;
+  email: string;
+  name: string;
+  birthDate: string;     // ISO 8601
+  gender: 'female' | 'male';
+  workStatus: 'working' | 'full_time_caregiver' | null;
+  onboardedAt: string;   // ISO 8601
+  children: Child[];
+  appUsageSlots: UserAppUsageSlot[];
+}
+```
+
+**에러 응답**:
+
+| 상태 | code                           | 의미                                              |
+| ---- | ------------------------------ | ------------------------------------------------- |
+| 400  | `VALIDATION_ERROR`             | 검증 실패 (필드별 메시지는 표준 NestJS 응답 형태) |
+| 401  | `UNAUTHORIZED`                 | JWT 없음/만료                                     |
+| 409  | `ONBOARDING_ALREADY_COMPLETED` | 이미 완료한 사용자가 재호출. body에 `onboardedAt` |
+| 500  | `INTERNAL_ERROR`               | 트랜잭션 실패                                     |
+
+#### 엔드포인트 — `GET /me`
+
+기존 응답에 `onboardedAt`, `workStatus`, `appUsageSlots` 추가. 미완료 사용자는 `onboardedAt: null`로 응답 (라우트 자체는 `JwtAuthGuard`만, 온보딩 가드 적용 X).
+
+#### Auth Guard 분기 (`OnboardingCompleteGuard`)
+
+`JwtAuthGuard` 다음에 적용. 다음 라우트는 **온보딩 미완료여도 통과**:
+
+- `POST /onboarding/complete`
+- `GET /me`
+- `POST /auth/*` (로그아웃 등)
+
+그 외 도메인 라우트(`/missions`, `/chat`, `/reports`, …)는 `user.onboardedAt == null`이면 **403** + body:
+
+```typescript
+{
+  statusCode: 403,
+  code: 'ONBOARDING_REQUIRED',
+  redirectTo: '/onboarding'
+}
+```
+
+구현 옵션: 라우트 단위 `@SkipOnboardingCheck()` 데코레이터 + 글로벌 가드. 또는 화이트리스트 경로를 가드 내부에서 정적 매칭.
+
+#### OpenAPI export
+
+- `@nestjs/swagger`가 자동으로 DTO·Response 타입 export
+- 빌드 산출물: `dist/openapi.json` 또는 런타임 `/openapi.json`
+- 클라이언트 코드젠은 web/admin/mobile에서 별도로 (이 기획 범위 밖)
+
+---
+
+### 4.2 yougabell-web 상세 스펙
+
+#### 라우트 구조
+
+```
+app/
+└── (onboarding)/
+    ├── layout.tsx        # 공통 컨테이너, 진행 상태 표시
+    ├── intro/
+    │   └── page.tsx      # 디자인 확정 후 캐러셀/단일 결정
+    ├── parent/page.tsx
+    ├── children/page.tsx
+    ├── app-usage/page.tsx
+    └── done/page.tsx     # 완료 후 홈으로 redirect
+```
+
+> `(onboarding)` route group으로 일반 레이아웃과 분리. layout.tsx는 인증 체크 + 단계 진행도 표시.
+
+#### localStorage draft 스키마
+
+키: `onboarding:draft:v2`
+
+```typescript
+type OnboardingDraft = {
+  schemaVersion: 2;
+  lastStep: 'intro' | 'parent' | 'children' | 'app-usage';
+  parent?: {
+    name?: string;
+    birthDate?: string;       // "YYYY-MM-DD"
+    gender?: 'female' | 'male';
+    workStatus?: 'working' | 'full_time_caregiver' | null;
+  };
+  children?: Array<{
+    tempId: string;           // 클라이언트 측 임시 ID
+    name?: string;
+    birthDate?: string;
+    gender?: 'female' | 'male';
+    notes?: string;
+  }>;
+  appUsage?: Array<{
+    dayOfWeek: 'MON' | ... | 'SUN';
+    slot: 'MORNING' | ... | 'ALL_DAY';
+  }>;
+  updatedAt: string;          // ISO 8601 (마지막 갱신 시각)
+};
+```
+
+#### `useOnboardingDraft()` 훅 인터페이스
+
+```typescript
+function useOnboardingDraft(): {
+  draft: OnboardingDraft | null;
+  setStep: <K extends keyof OnboardingDraft>(
+    key: K,
+    value: OnboardingDraft[K],
+  ) => void;
+  clear: () => void;
+  isDirty: boolean; // draft가 존재하는가
+};
+```
+
+- 내부적으로 `useSyncExternalStore` 또는 단순 `useState` + `useEffect` 패턴
+- 단계별 `onChange` → debounce 200ms → localStorage 저장
+- `clear()`는 완료 응답 200 직후 호출
+
+#### web → API payload 매핑
+
+`done` 페이지 마운트 시점에 draft를 검증·정규화 후 `POST /onboarding/complete` 호출.
+
+```typescript
+async function submitOnboarding(draft: OnboardingDraft) {
+  const payload: CompleteOnboardingDto = {
+    parent: {
+      name: draft.parent!.name!,
+      birthDate: draft.parent!.birthDate!,
+      gender: draft.parent!.gender!,
+      workStatus: draft.parent?.workStatus ?? null, // 미입력은 명시적으로 null
+    },
+    children: (draft.children ?? []).map(({ tempId, ...rest }) => rest),
+    appUsage: draft.appUsage ?? [],
+  };
+
+  const res = await api.post("/onboarding/complete", payload);
+  clearDraft();
+  notifyMobile({ type: "ONBOARDING_COMPLETE" }); // mobile WebView 일 때
+  return res;
+}
+```
+
+#### 미들웨어 (`middleware.ts`)
+
+```typescript
+// 인증 체크 후 me.onboardedAt 분기
+if (user && !me.onboardedAt && !pathname.startsWith("/onboarding")) {
+  return NextResponse.redirect(new URL("/onboarding", request.url));
+}
+if (user && me.onboardedAt && pathname.startsWith("/onboarding")) {
+  return NextResponse.redirect(new URL("/", request.url));
+}
+```
+
+- `me.onboardedAt`은 SSR 단계에서 캐시 (cookie 또는 짧은 TTL revalidate)
+- 미인증 사용자는 `/login`으로 리디렉트 (기존 룰 유지)
+
+#### 컴포넌트 인터페이스
+
+```typescript
+// IntroScreen — 디자인 확정 전 placeholder. 캐러셀 결정되면 IntroCarousel로 교체
+type IntroScreenProps = { onNext: () => void; onSkip: () => void };
+
+// DateTriple — 년/월/일 분리 입력
+type DateTripleProps = {
+  value?: string; // "YYYY-MM-DD"
+  onChange: (iso: string) => void;
+};
+
+// SegmentedToggle — 직장 유무는 미선택 허용
+type SegmentedToggleProps<T> = {
+  options: { value: T; label: string }[];
+  value: T | null;
+  onChange: (v: T | null) => void;
+  allowDeselect?: boolean; // 직장 유무에서 true
+};
+
+// ChildCard — 다자녀 입력
+type ChildCardProps = {
+  child: Partial<ChildDraft>;
+  onChange: (next: Partial<ChildDraft>) => void;
+  onRemove?: () => void;
+};
+
+// AppUsageMatrix — 디자인 재검토 중. 임시 인터페이스
+type AppUsageMatrixProps = {
+  value: Array<{ dayOfWeek: DayOfWeek; slot: TimeSlot }>;
+  onChange: (next: AppUsageMatrixProps["value"]) => void;
+};
+```
+
+---
+
+### 4.3 yougabell-mobile WebView 통합 상세
+
+#### 역할 분담 (web vs mobile)
+
+| 책임             | web                                              | mobile (Expo)                   |
+| ---------------- | ------------------------------------------------ | ------------------------------- |
+| 온보딩 UI        | 전부 담당                                        | —                               |
+| 인증 (로그인)    | `@supabase/ssr` 쿠키 기반                        | —                               |
+| 데이터 수집·저장 | 전부 담당                                        | —                               |
+| 푸시 권한 요청   | 시각적 안내 가능, 실제 권한 호출은 mobile에 위임 | 안내 → OS 다이얼로그 표시       |
+| WebView 호스팅   | —                                                | `react-native-webview` 컨테이너 |
+| Deep link 진입   | 라우팅 로직 (web)                                | URL 파싱 후 WebView로 전달      |
+
+→ **모바일에서 인증을 별도 처리하지 않음**. WebView 내부에서 web의 `@supabase/ssr`이 쿠키 세션 관리. Mobile은 단순 셸.
+
+#### WebView 컨테이너 (`yougabell-mobile/app/(tabs)/index.tsx` 또는 `webview/container.tsx`)
+
+```tsx
+import { WebView } from "react-native-webview";
+import { useRef } from "react";
+
+const WEB_URL = process.env.EXPO_PUBLIC_WEB_URL!; // https://app.yougabell.kr 등
+
+export default function MainWebView() {
+  const ref = useRef<WebView>(null);
+
+  return (
+    <WebView
+      ref={ref}
+      source={{ uri: WEB_URL }}
+      onMessage={(event) =>
+        handleWebMessage(JSON.parse(event.nativeEvent.data))
+      }
+      sharedCookiesEnabled // iOS — Supabase 세션 쿠키 공유
+      thirdPartyCookiesEnabled // Android
+      javaScriptEnabled
+      domStorageEnabled // localStorage 활성
+      injectedJavaScriptBeforeContentLoaded={`window.__YOUGABELL_NATIVE__ = true;`}
+    />
+  );
+}
+```
+
+- **localStorage 영속성**: iOS `WKWebView` / Android `WebView` 모두 앱 내부에 저장됨. **앱 삭제·OS 캐시 클리어 시 유실** (수용 가능)
+- **쿠키 영속성**: `sharedCookiesEnabled` + `thirdPartyCookiesEnabled` 설정 시 Supabase 세션 쿠키 유지
+- `window.__YOUGABELL_NATIVE__` — web이 자신의 호스트 환경을 감지해 native 전용 동작(예: postMessage) 활성
+
+#### web → mobile 메시지 (`postMessage` 프로토콜)
+
+| type                      | payload              | 발생 시점                                 | mobile 처리                        |
+| ------------------------- | -------------------- | ----------------------------------------- | ---------------------------------- |
+| `ONBOARDING_COMPLETE`     | `{ userId: string }` | `POST /onboarding/complete` 200 응답 직후 | 푸시 권한 요청 다이얼로그 표시     |
+| `REQUEST_PUSH_PERMISSION` | —                    | (옵션) 푸시 안내 화면에서 명시 요청 시    | OS 권한 다이얼로그                 |
+| `LOGOUT`                  | —                    | 로그아웃 시                               | SecureStore 토큰 정리, splash 진입 |
+
+**web 측 호출 헬퍼**:
+
+```typescript
+function notifyMobile(msg: { type: string; payload?: unknown }) {
+  if (typeof window === "undefined") return;
+  if (
+    (window as any).__YOUGABELL_NATIVE__ &&
+    (window as any).ReactNativeWebView
+  ) {
+    (window as any).ReactNativeWebView.postMessage(JSON.stringify(msg));
+  }
+}
+```
+
+**mobile 측 수신 (`handleWebMessage`)**:
+
+```typescript
+async function handleWebMessage(msg: { type: string; payload?: unknown }) {
+  switch (msg.type) {
+    case "ONBOARDING_COMPLETE":
+      await requestPushPermission();
+      break;
+    case "REQUEST_PUSH_PERMISSION":
+      await requestPushPermission();
+      break;
+    case "LOGOUT":
+      await SecureStore.deleteItemAsync("expo_push_token");
+      break;
+  }
+}
+```
+
+#### 푸시 권한 요청 흐름
+
+```
+web /onboarding/done 도착
+  → POST /onboarding/complete 200
+  → notifyMobile({ type: 'ONBOARDING_COMPLETE' })
+                    ↓
+mobile handleWebMessage
+  → expo-notifications: getPermissionsAsync()
+    → status === 'undetermined' → requestPermissionsAsync()
+    → granted: getExpoPushTokenAsync() → 서버에 등록 (별도 endpoint, 본 기획 범위 밖)
+    → denied: 무시 (사용자 설정에서 변경 안내는 별도 화면)
+  → web으로 redirect는 자동 (postMessage는 단방향, web은 자기 흐름대로 홈으로 이동)
+```
+
+#### Android 하드웨어 back 버튼
+
+- 기본: WebView가 history pop. 인트로에서 더 뒤로 가면 앱 종료 → 일반 anti-pattern이지만 첫 진입이라 수용
+- 단계 사이(parent → children) 뒤로 가기는 web의 router back으로 처리, mobile은 개입 X
+- 구현: `BackHandler` listener + WebView `canGoBack()` 활용
+
+---
+
+### 4.4 엣지 케이스
+
+| 상황                                                                  | 처리                                                                      |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `POST /onboarding/complete` 네트워크 실패                             | 토스트 + 재시도 버튼. draft는 유지(clear 안 함)                           |
+| `POST /onboarding/complete` 409 (이미 완료)                           | draft clear + 홈으로 강제 리디렉트                                        |
+| 사용자가 인트로에서 "건너뛰기" 후 자녀 정보까지 와서 다시 인트로 진입 | draft 존재하므로 "이어서 작성하기 / 처음부터" 다이얼로그                  |
+| 다른 디바이스로 이어서 작성                                           | 미지원. 새 디바이스는 처음부터 (draft가 디바이스 로컬)                    |
+| draft가 schemaVersion 1 (구버전)                                      | clear + 처음부터 (마이그레이션 X — 첫 1회 온보딩 데이터라 손실 영향 미미) |
+| Mobile WebView에서 web 도메인 인증서 오류                             | WebView `onError`로 mobile splash에서 재시도 안내                         |
+| 푸시 권한 거부 후 온보딩 종료                                         | 홈 진행. 푸시 안내 배너로 후속 권한 요청 가능                             |
+| 자녀 0명으로 제출 시도                                                | API에서 400 `VALIDATION_ERROR`. web에서 사전 검증으로 차단                |
 
 ---
 
