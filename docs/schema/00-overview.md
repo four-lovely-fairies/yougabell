@@ -15,11 +15,14 @@ erDiagram
     User ||--o{ MentalCareExecution : "performs"
     User ||--o{ ChatSession : "owns"
     User ||--o{ WeeklyReport : "owns"
+    User ||--o{ Notification : "receives"
+    User ||--o{ UserPushToken : "registers"
     User }o--o| ParentingStyle : "future (분리 예정)"
     User ||--o{ UserParentingAssessment : "future"
 
     Child ||--o{ MissionExecution : "performs"
     Child ||--o{ WeeklyReport : "summarized in"
+    Child ||--o{ Notification : "context for"
 
     Mission ||--o{ MissionExecution : "executed as"
     Mission }o--|| MilestoneCategory : "categorized by"
@@ -38,6 +41,9 @@ erDiagram
     ChatMessage ||--o{ SourceLink : "cites"
 
     WeeklyReport }o--o{ ImprovementTip : "suggests"
+
+    Notification ||--o{ NotificationDelivery : "delivered as"
+    UserPushToken ||--o{ NotificationDelivery : "receives push"
 
     ParentingStyle ||--o{ UserParentingAssessment : "result of"
     AssessmentQuestion ||--o{ AssessmentChoice : "has"
@@ -78,20 +84,21 @@ flowchart LR
 
 ## 엔티티 인덱스
 
-> 파일명 prefix는 **유저 플로우 순서**: 온보딩(01-02) → 일일 진입(03) → 콘텐츠 노출(04) → 미션(05) → 마음 케어(06) → 챗봇(07) → 주간 회고(08) → 부가 콘텐츠(09) → 후속 기능(10).
+> 파일명 prefix는 **유저 플로우 순서**: 온보딩(01-02) → 일일 진입(03) → 콘텐츠 노출(04) → 미션(05) → 마음 케어(06) → 챗봇(07) → 주간 회고(08) → 부가 콘텐츠(09) → 후속 기능(10) → 알림(11).
 
-| #   | 영역           | 문서                                             | 주요 엔티티                                                       | 진입 시점       | 상태       |
-| --- | -------------- | ------------------------------------------------ | ----------------------------------------------------------------- | --------------- | ---------- |
-| 01  | 사용자         | [01-user.md](./01-user.md)                       | `User`                                                            | 온보딩02        | 온보딩     |
-| 02  | 자녀           | [02-child.md](./02-child.md)                     | `Child`                                                           | 온보딩03        | 온보딩     |
-| 03  | 마음 배터리    | [03-mental-battery.md](./03-mental-battery.md)   | `MentalBatteryCheck`                                              | 멘탈 체크 진입  | 1차        |
-| 04  | 발달 로드맵    | [04-roadmap.md](./04-roadmap.md)                 | `MilestoneCategory`, `Milestone`, `GrowthStage`, `PeerInsight`    | 로드맵 진입     | 1차        |
-| 05  | 미션           | [05-mission.md](./05-mission.md)                 | `Mission`, `MissionExecution`, `MissionFeedback`                  | 홈 → 시작하기   | 1차        |
-| 06  | 마음 케어      | [06-mental-care.md](./06-mental-care.md)         | `MentalCareCategory`, `MentalCareExecution`                       | 배터리 ≤ 2 추천 | 1차        |
-| 07  | AI 챗봇        | [07-chat.md](./07-chat.md)                       | `ChatSession`, `ChatMessage`, `MessageCard`, `SourceLink`         | 사용자 트리거   | 1차        |
-| 08  | 주간 리포트    | [08-report.md](./08-report.md)                   | `WeeklyReport`                                                    | 주말/주초       | 1차        |
-| 09  | 콘텐츠         | [09-content.md](./09-content.md)                 | `ImprovementTip`, `InspirationQuote`, `PeerInsight`               | 여러 화면 회전  | 1차        |
-| 10  | 양육 유형 진단 | [10-parenting-style.md](./10-parenting-style.md) | `AssessmentQuestion`, `ParentingStyle`, `UserParentingAssessment` | (마이페이지 등) | **future** |
+| #   | 영역           | 문서                                             | 주요 엔티티                                                         | 진입 시점       | 상태       |
+| --- | -------------- | ------------------------------------------------ | ------------------------------------------------------------------- | --------------- | ---------- |
+| 01  | 사용자         | [01-user.md](./01-user.md)                       | `User`                                                              | 온보딩02        | 온보딩     |
+| 02  | 자녀           | [02-child.md](./02-child.md)                     | `Child`                                                             | 온보딩03        | 온보딩     |
+| 03  | 마음 배터리    | [03-mental-battery.md](./03-mental-battery.md)   | `MentalBatteryCheck`                                                | 멘탈 체크 진입  | 1차        |
+| 04  | 발달 로드맵    | [04-roadmap.md](./04-roadmap.md)                 | `MilestoneCategory`, `Milestone`, `GrowthStage`, `PeerInsight`      | 로드맵 진입     | 1차        |
+| 05  | 미션           | [05-mission.md](./05-mission.md)                 | `Mission`, `MissionExecution`, `MissionFeedback`                    | 홈 → 시작하기   | 1차        |
+| 06  | 마음 케어      | [06-mental-care.md](./06-mental-care.md)         | `MentalCareCategory`, `MentalCareExecution`                         | 배터리 ≤ 2 추천 | 1차        |
+| 07  | AI 챗봇        | [07-chat.md](./07-chat.md)                       | `ChatSession`, `ChatMessage`, `MessageCard`, `SourceLink`           | 사용자 트리거   | 1차        |
+| 08  | 주간 리포트    | [08-report.md](./08-report.md)                   | `WeeklyReport`                                                      | 주말/주초       | 1차        |
+| 09  | 콘텐츠         | [09-content.md](./09-content.md)                 | `ImprovementTip`, `InspirationQuote`, `PeerInsight`                 | 여러 화면 회전  | 1차        |
+| 10  | 양육 유형 진단 | [10-parenting-style.md](./10-parenting-style.md) | `AssessmentQuestion`, `ParentingStyle`, `UserParentingAssessment`   | (마이페이지 등) | **future** |
+| 11  | 알림           | [11-notification.md](./11-notification.md)       | `Notification`, `UserPushToken`(후속), `NotificationDelivery`(후속) | 홈/푸시         | 1차        |
 
 ---
 
@@ -109,3 +116,4 @@ flowchart LR
 
 - 2026-05-02 — Figma 와이어프레임 기준 초안 작성 (41개 화면 추출)
 - 2026-05-02 — ASCII 다이어그램 → mermaid 전환, 양육 유형 진단을 [10-parenting-style.md](./10-parenting-style.md)로 분리 (후속 기능)
+- 2026-05-11 — 홈 알림 모달을 위한 [11-notification.md](./11-notification.md) 추가
