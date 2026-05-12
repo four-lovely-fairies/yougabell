@@ -60,8 +60,8 @@ v2 인트로 구성(화면 수·내용)은 **미정** — 와이어프레임의 
 | ----------- | --------------------------------------------------------- | ----------------------------------------- |
 | `id`        | UUID                                                      | PK                                        |
 | `userId`    | FK → User                                                 |                                           |
-| `dayOfWeek` | `enum('MON',…,'SUN')`                                     |                                           |
-| `slot`      | `enum('MORNING','AFTERNOON','EVENING','NIGHT','ALL_DAY')` | 06–12 / 12–18 / 18–24 / 00–06 / 하루 종일 |
+| `dayOfWeek` | `Weekday` (기존 enum 재사용, `mon`–`sun`)                 | `WeeklyReportDay`도 같은 enum 사용        |
+| `slot`      | `enum('morning','afternoon','evening','night','all_day')` | 06–12 / 12–18 / 18–24 / 00–06 / 하루 종일 |
 
 `(userId, dayOfWeek, slot)` UNIQUE.
 
@@ -90,54 +90,48 @@ v2 인트로 구성(화면 수·내용)은 **미정** — 와이어프레임의 
 #### Prisma schema diff (`yougabell-api/prisma/schema.prisma`)
 
 ```prisma
-// User에 필드 추가
+// User: 두 Float 필드 제거, workStatus/onboardedAt 추가
 model User {
   // ... 기존 필드 유지
-  workStatus    WorkStatus?            // nullable (선택 입력)
-  onboardedAt   DateTime?              // nullable. 온보딩 완료 시각 1회 기록
-  appUsageSlots UserAppUsageSlot[]
+- weekdayHoursWithChild Float?
+- weekendHoursWithChild Float?
++ workStatus            WorkStatus?           // nullable (선택 입력)
++ onboardedAt           DateTime?             // nullable. 온보딩 완료 시각 1회 기록
++ appUsageSlots         UserAppUsageSlot[]
 }
 
-// 신규 enum
+// 신규 enum (lowercase — 기존 schema 컨벤션)
 enum WorkStatus {
-  WORKING               // "일을 하고 있어요"
-  FULL_TIME_CAREGIVER   // "전업 가정인이에요"
+  working               // "일을 하고 있어요"
+  full_time_caregiver   // "전업 가정인이에요"
 }
 
-// 신규 테이블
+// 신규 테이블 — 기존 Weekday enum 재사용
 model UserAppUsageSlot {
-  id        String    @id @default(uuid())
-  userId   String
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  dayOfWeek DayOfWeek
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  dayOfWeek Weekday  // 기존 enum (mon..sun)
   slot      TimeSlot
-  createdAt DateTime  @default(now())
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, dayOfWeek, slot])
   @@index([userId])
 }
 
-enum DayOfWeek {
-  MON
-  TUE
-  WED
-  THU
-  FRI
-  SAT
-  SUN
-}
-
 enum TimeSlot {
-  MORNING    // 06:00–12:00
-  AFTERNOON  // 12:00–18:00
-  EVENING    // 18:00–24:00
-  NIGHT      // 00:00–06:00
-  ALL_DAY
+  morning    // 06:00–12:00
+  afternoon  // 12:00–18:00
+  evening    // 18:00–24:00
+  night      // 00:00–06:00
+  all_day
 }
 ```
 
 - 마이그레이션: `pnpm prisma:migrate:dev --name onboarding_v2`
-- `Child` 모델은 변경 없음 (이미 `notes` 자유 텍스트 필드 보유)
+- `Child` 모델은 변경 없음. 다만 `displayOrder`가 필수 필드라 서비스에서 **입력 순서 idx로 자동 할당**
+- 명명 컨벤션: 기획서 초안의 PascalCase 대신 기존 schema의 **lowercase**를 따름 (`docs/schema/AGENTS.md` "Prisma가 코드 진실의 소스" 원칙)
 
 #### 엔드포인트 — `POST /onboarding/complete`
 
@@ -153,15 +147,15 @@ enum TimeSlot {
     gender: 'female' | 'male'; // required
     workStatus?: 'working' | 'full_time_caregiver' | null; // optional
   };
-  children: Array<{          // required, 최소 1개
+  children: Array<{          // required, 최소 1개. 입력 순서대로 displayOrder 자동 할당
     name: string;            // required, 1~30자
     birthDate: string;       // required, "YYYY-MM-DD"
     gender: 'female' | 'male'; // required
     notes?: string;          // optional, 자유 텍스트, 최대 1000자
   }>;
-  appUsage: Array<{          // required (빈 배열 허용 여부는 디자인 확정 후)
-    dayOfWeek: 'MON'|'TUE'|'WED'|'THU'|'FRI'|'SAT'|'SUN';
-    slot: 'MORNING'|'AFTERNOON'|'EVENING'|'NIGHT'|'ALL_DAY';
+  appUsage: Array<{          // required (빈 배열 허용 — 향후 정책 확정)
+    dayOfWeek: 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun';
+    slot: 'morning'|'afternoon'|'evening'|'night'|'all_day';
   }>;
 }
 ```
@@ -317,8 +311,8 @@ type OnboardingDraft = {
     notes?: string;
   }>;
   appUsage?: Array<{
-    dayOfWeek: 'MON' | ... | 'SUN';
-    slot: 'MORNING' | ... | 'ALL_DAY';
+    dayOfWeek: 'mon' | ... | 'sun';
+    slot: 'morning' | ... | 'all_day';
   }>;
   updatedAt: string;          // ISO 8601 (마지막 갱신 시각)
 };
@@ -410,7 +404,7 @@ type ChildCardProps = {
 
 // AppUsageMatrix — 디자인 재검토 중. 임시 인터페이스
 type AppUsageMatrixProps = {
-  value: Array<{ dayOfWeek: DayOfWeek; slot: TimeSlot }>;
+  value: Array<{ dayOfWeek: Weekday; slot: TimeSlot }>;
   onChange: (next: AppUsageMatrixProps["value"]) => void;
 };
 ```
@@ -638,14 +632,15 @@ mobile handleWebMessage
 
 ### Phase 1 — `yougabell-api` (선행, 다른 레포 시작 차단)
 
-- [ ] Prisma schema 갱신: `User.workStatus`, `User.onboardedAt`, `UserAppUsageSlot`, enum 3종
-- [ ] 마이그레이션 실행 (`pnpm prisma:migrate:dev --name onboarding_v2`)
-- [ ] `OnboardingModule` + `OnboardingController` (`POST /onboarding/complete`)
-- [ ] `CompleteOnboardingDto` + `class-validator` 룰 적용
-- [ ] 트랜잭션 처리 (`prisma.$transaction` + 멱등성 `409` 응답)
-- [ ] `GET /me` 응답에 `onboardedAt`/`workStatus`/`children`/`appUsageSlots` 포함
-- [ ] `OnboardingCompleteGuard` (화이트리스트 + `403 ONBOARDING_REQUIRED`)
-- [ ] OpenAPI 스펙 export 갱신
+- [x] Prisma schema 갱신: `User.workStatus`/`onboardedAt`, `UserAppUsageSlot`, `WorkStatus`/`TimeSlot` enum (기존 `Weekday` 재사용). 두 Float 필드(`weekday/weekendHoursWithChild`) 제거
+- [ ] 마이그레이션 실행 (`pnpm prisma:migrate:dev --name onboarding_v2`) — `.env` 셋업 후
+- [x] `OnboardingModule` + `OnboardingController` (`POST /onboarding/complete`)
+- [x] `CompleteOnboardingDto` + `class-validator` 룰 적용 (+ `@nestjs/swagger` 데코레이터)
+- [x] 트랜잭션 처리 (`prisma.$transaction` + 멱등성 `409` 응답)
+- [x] `GET /me` 응답에 `onboardedAt`/`workStatus`/`children`/`appUsageSlots` 포함 (`UsersController`)
+- [x] `OnboardingCompleteGuard` (글로벌 `APP_GUARD` + `@SkipOnboardingCheck()` 데코레이터 + `403 ONBOARDING_REQUIRED`)
+- [△] OpenAPI 스펙 export — 코드 작성됨 (`main.ts`에 `SwaggerModule` + `OPENAPI_EXPORT_PATH`). 부팅 검증은 `.env` 셋업 후
+- [ ] **별도 task**: `JwtAuthGuard`가 현재 placeholder(`x-user-id` 헤더). Supabase JWT 검증으로 교체 필요
 
 ### Phase 2 — `yougabell-web` (api 완료 후)
 
