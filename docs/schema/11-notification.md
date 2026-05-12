@@ -9,20 +9,22 @@
 
 > 사용자가 앱 안에서 확인하는 알림 1건. 초기 범위는 **in-app 알림 목록**이다.
 
-| 필드            | 타입                                                                                     | 필수 | 설명                                                              | 출처/메모                     |
-| --------------- | ---------------------------------------------------------------------------------------- | :--: | ----------------------------------------------------------------- | ----------------------------- |
-| `id`            | `string`                                                                                 |  \*  | PK                                                                | —                             |
-| `userId`        | `FK → User.id`                                                                           |  \*  | 알림 수신자                                                       | —                             |
-| `childId`       | `FK → Child.id`                                                                          |  ?   | 특정 자녀 맥락의 알림일 때만. 예: 미션·리포트·로드맵 알림         | 홈은 선택 자녀 기준 노출 가능 |
-| `type`          | `NotificationType`                                                                       |  \*  | 알림 종류                                                         | 아래 enum                     |
-| `title`         | `string`                                                                                 |  \*  | 목록/푸시에 표시할 제목                                           | —                             |
-| `body`          | `string`                                                                                 |  \*  | 한두 줄 본문                                                      | —                             |
-| `actionType`    | `enum('none','open_home','open_mission','open_roadmap','open_chat','open_report','url')` |  \*  | 탭/딥링크 액션                                                    | 홈 알림 모달에서 탭 시 처리   |
-| `actionPayload` | `Record<string, unknown>`                                                                |  ?   | `missionId`, `reportId`, `chatSessionId`, `url` 등 액션별 payload | JSON 컬럼 후보                |
-| `priority`      | `enum('normal','high')`                                                                  |  \*  | 기본 `normal`. 긴급 안내·실패 알림은 `high`                       | 정렬/푸시 발송 정책 입력      |
-| `readAt`        | `DateTime`                                                                               |  ?   | 사용자가 읽은 시각. `null`이면 미확인                             | 홈 badge count 산출           |
-| `createdAt`     | `DateTime`                                                                               |  \*  | 생성 시각                                                         | 정렬 기준                     |
-| `expiresAt`     | `DateTime`                                                                               |  ?   | 지나면 목록에서 숨길 수 있는 시각. 예: 오늘 미션 알림             | 오래된 CTA 방지               |
+| 필드         | 타입                                                                                     | 필수 | 설명                                                      | 출처/메모                     |
+| ------------ | ---------------------------------------------------------------------------------------- | :--: | --------------------------------------------------------- | ----------------------------- |
+| `id`         | `string`                                                                                 |  \*  | PK                                                        | —                             |
+| `userId`     | `FK → User.id`                                                                           |  \*  | 알림 수신자                                               | —                             |
+| `childId`    | `FK → Child.id`                                                                          |  ?   | 특정 자녀 맥락의 알림일 때만. 예: 미션·리포트·로드맵 알림 | 홈은 선택 자녀 기준 노출 가능 |
+| `type`       | `NotificationType`                                                                       |  \*  | 알림 종류                                                 | 아래 enum                     |
+| `title`      | `string`                                                                                 |  \*  | 목록/푸시에 표시할 제목                                   | —                             |
+| `body`       | `string`                                                                                 |  \*  | 한두 줄 본문                                              | —                             |
+| `actionType` | `enum('none','open_home','open_mission','open_roadmap','open_chat','open_report','url')` |  \*  | 탭/딥링크 액션                                            | 홈 알림 모달에서 탭 시 처리   |
+| `targetType` | `NotificationTargetType`                                                                 |  ?   | 클릭 대상의 도메인 종류                                   | 아래 enum                     |
+| `targetId`   | `string`                                                                                 |  ?   | 클릭 대상 id. 예: `missionId`, `executionId`, `reportId`  | JSON 대신 단일 id 사용        |
+| `targetUrl`  | `string`                                                                                 |  ?   | 외부 링크 이동이 필요한 경우                              | `actionType = 'url'`          |
+| `priority`   | `enum('normal','high')`                                                                  |  \*  | 기본 `normal`. 긴급 안내·실패 알림은 `high`               | 정렬/푸시 발송 정책 입력      |
+| `readAt`     | `DateTime`                                                                               |  ?   | 사용자가 읽은 시각. `null`이면 미확인                     | 홈 badge count 산출           |
+| `createdAt`  | `DateTime`                                                                               |  \*  | 생성 시각                                                 | 정렬 기준                     |
+| `expiresAt`  | `DateTime`                                                                               |  ?   | 지나면 목록에서 숨길 수 있는 시각. 예: 오늘 미션 알림     | 오래된 CTA 방지               |
 
 ### `NotificationType`
 
@@ -37,13 +39,25 @@ type NotificationType =
   | "system_notice"; // 서비스 공지, 점검 등
 ```
 
+### `NotificationTargetType`
+
+```ts
+type NotificationTargetType =
+  | "mission"
+  | "mission_execution"
+  | "weekly_report"
+  | "child"
+  | "chat_session"
+  | "url";
+```
+
 ### 파생 값 (저장 X, 계산)
 
-| 필드         | 계산                                   | 사용처                         |
-| ------------ | -------------------------------------- | ------------------------------ |
-| `isUnread`   | `readAt == null`                       | 홈 알림 badge, 목록 bold 처리  |
-| `isExpired`  | `expiresAt != null && now > expiresAt` | 목록 필터, 액션 비활성화       |
-| `targetPath` | `actionType + actionPayload`           | web route 이동, WebView 딥링크 |
+| 필드         | 계산                                         | 사용처                         |
+| ------------ | -------------------------------------------- | ------------------------------ |
+| `isUnread`   | `readAt == null`                             | 홈 알림 badge, 목록 bold 처리  |
+| `isExpired`  | `expiresAt != null && now > expiresAt`       | 목록 필터, 액션 비활성화       |
+| `targetPath` | `actionType + targetType/targetId/targetUrl` | web route 이동, WebView 딥링크 |
 
 ### 관계 (Relations)
 
@@ -67,18 +81,18 @@ type NotificationType =
 
 ### 액션 매핑
 
-`actionType`은 알림 클릭 시 수행할 동작 종류이고, `actionPayload`는 그 동작에 필요한 식별자다.
+`actionType`은 알림 클릭 시 수행할 동작 종류이고, `targetType`/`targetId`/`targetUrl`은 그 동작에 필요한 목적지다.
 
-| 예시 type             | actionType     | actionPayload 예시           | 결과                           |
-| --------------------- | -------------- | ---------------------------- | ------------------------------ |
-| `mission_reminder`    | `open_mission` | `{ "missionId": "..." }`     | 오늘 미션 화면으로 이동        |
-| `mission_feedback`    | `open_mission` | `{ "executionId": "..." }`   | 미션 피드백 입력 화면으로 이동 |
-| `weekly_report_ready` | `open_report`  | `{ "reportId": "..." }`      | 주간 리포트로 이동             |
-| `roadmap_update`      | `open_roadmap` | `{ "childId": "..." }`       | 해당 자녀 로드맵으로 이동      |
-| `chat_follow_up`      | `open_chat`    | `{ "chatSessionId": "..." }` | 챗봇 대화로 이동               |
-| `system_notice`       | `none` / `url` | `{ "url": "https://..." }`   | 이동 없음 또는 외부 링크       |
+| 예시 type             | actionType     | targetType          | targetId/targetUrl 예시    | 결과                           |
+| --------------------- | -------------- | ------------------- | -------------------------- | ------------------------------ |
+| `mission_reminder`    | `open_mission` | `mission`           | `targetId = missionId`     | 오늘 미션 화면으로 이동        |
+| `mission_feedback`    | `open_mission` | `mission_execution` | `targetId = executionId`   | 미션 피드백 입력 화면으로 이동 |
+| `weekly_report_ready` | `open_report`  | `weekly_report`     | `targetId = reportId`      | 주간 리포트로 이동             |
+| `roadmap_update`      | `open_roadmap` | `child`             | `targetId = childId`       | 해당 자녀 로드맵으로 이동      |
+| `chat_follow_up`      | `open_chat`    | `chat_session`      | `targetId = chatSessionId` | 챗봇 대화로 이동               |
+| `system_notice`       | `none` / `url` | `url`               | `targetUrl = https://...`  | 이동 없음 또는 외부 링크       |
 
-액션이 필요 없는 안내성 알림은 `actionType = 'none'`, `actionPayload = null`로 둔다.
+액션이 필요 없는 안내성 알림은 `actionType = 'none'`, `targetType = null`, `targetId = null`, `targetUrl = null`로 둔다.
 
 ### 생성 주체
 
@@ -156,13 +170,39 @@ type HomeNotificationSummary = {
     id: string;
     title: string;
     body: string;
+    actionType:
+      | "none"
+      | "open_home"
+      | "open_mission"
+      | "open_roadmap"
+      | "open_chat"
+      | "open_report"
+      | "url";
+    targetType:
+      | "mission"
+      | "mission_execution"
+      | "weekly_report"
+      | "child"
+      | "chat_session"
+      | "url"
+      | null;
+    targetId: string | null;
+    targetUrl: string | null;
     createdAt: string;
     readAt: string | null;
   }>;
 };
 ```
 
-알림 모달을 열 때는 `GET /notifications?limit=20`으로 상세 목록을 조회한다. 목록 항목 탭 시 `actionType`/`actionPayload`로 route를 결정하고, 읽음 처리(`readAt`)를 함께 수행한다.
+알림 모달을 열 때는 `GET /notifications?limit=20`으로 상세 목록을 조회한다. 목록 항목 탭 시 `actionType`/`targetType`/`targetId`/`targetUrl`로 route를 결정하고, 읽음 처리(`readAt`)를 함께 수행한다.
+
+### API endpoint 계약
+
+| Method  | Path                      | 설명                                     |
+| ------- | ------------------------- | ---------------------------------------- |
+| `GET`   | `/notifications?limit=20` | 최신 알림 목록 조회                      |
+| `PATCH` | `/notifications/:id/read` | 개별 알림 클릭 시 읽음 처리              |
+| `PATCH` | `/notifications/read-all` | 현재 사용자의 미확인 알림 모두 읽음 처리 |
 
 ---
 
