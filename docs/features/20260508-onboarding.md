@@ -79,7 +79,7 @@ v2 인트로 구성(화면 수·내용)은 **미정** — 와이어프레임의 
 |                    | 컴포넌트 — `IntroScreen`(또는 캐러셀, 디자인 확정 후), `DateTriple`(년/월/일 분리 입력), `SegmentedToggle`(직장 유무는 미선택 허용), `ChildCard`(다자녀), `AppUsageMatrix` | api 후속     |
 |                    | **로컬 저장소 훅** — `useOnboardingDraft()`: localStorage `onboarding:draft:v2` read/write/clear. 단계 이동 시 자동 저장, 완료 응답 200 후 clear                           | api와 병행   |
 |                    | **재개 UX** — `/(onboarding)/intro` 진입 시 draft 존재하면 "이어서 작성하기 / 처음부터" 다이얼로그                                                                         | api 후속     |
-|                    | 미들웨어 — 인증된 사용자 중 `me.onboardedAt == null`이면 `/(onboarding)/...` 외 차단                                                                                       | api 후속     |
+|                    | `proxy.ts` — 인증된 사용자 중 `me.onboardedAt == null`이면 `/onboarding/...` 외 차단                                                                                       | api 후속     |
 | `yougabell-admin`  | 운영자 화면에서 `workStatus`(nullable), `appUsageSlots` 표시(읽기 전용, 마스킹 룰 따름)                                                                                    | api 후속     |
 | `yougabell-mobile` | WebView 컨테이너 + 인증 토큰 브릿지 + `ONBOARDING_COMPLETE` postMessage 수신 후 푸시 권한 요청                                                                             | api/web 병행 |
 
@@ -359,16 +359,24 @@ async function submitOnboarding(draft: OnboardingDraft) {
 }
 ```
 
-#### 미들웨어 (`middleware.ts`)
+#### Proxy (`proxy.ts`, Next.js 16)
+
+Next.js 16에서 `middleware.ts` → `proxy.ts`로, 함수도 `proxy`로 변경됨.
 
 ```typescript
-// 인증 체크 후 me.onboardedAt 분기
-if (user && !me.onboardedAt && !pathname.startsWith("/onboarding")) {
-  return NextResponse.redirect(new URL("/onboarding", request.url));
+// proxy.ts
+import { NextResponse } from "next/server";
+
+export function proxy() {
+  // 인증 체크 후 me.onboardedAt 분기 (placeholder — Supabase 세션 통합은 후속)
+  // if (user && !me.onboardedAt && !pathname.startsWith("/onboarding")) → redirect "/onboarding/intro"
+  // if (user && me.onboardedAt && pathname.startsWith("/onboarding"))   → redirect "/"
+  return NextResponse.next();
 }
-if (user && me.onboardedAt && pathname.startsWith("/onboarding")) {
-  return NextResponse.redirect(new URL("/", request.url));
-}
+
+export const config = {
+  matcher: ["/((?!_next|favicon.ico|.*\\.).*)"],
+};
 ```
 
 - `me.onboardedAt`은 SSR 단계에서 캐시 (cookie 또는 짧은 TTL revalidate)
