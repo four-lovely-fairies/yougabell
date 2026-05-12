@@ -277,17 +277,16 @@ await prisma.$transaction(async (tx) => {
 
 ```
 app/
-└── (onboarding)/
-    ├── layout.tsx        # 공통 컨테이너, 진행 상태 표시
-    ├── intro/
-    │   └── page.tsx      # 디자인 확정 후 캐러셀/단일 결정
+└── onboarding/           # 일반 segment (route group 아님 — URL에 onboarding 포함)
+    ├── layout.tsx        # 모바일 뷰 컨테이너 + safe-area
+    ├── intro/page.tsx    # 디자인 확정 전 placeholder
     ├── parent/page.tsx
     ├── children/page.tsx
     ├── app-usage/page.tsx
     └── done/page.tsx     # 완료 후 홈으로 redirect
 ```
 
-> `(onboarding)` route group으로 일반 레이아웃과 분리. layout.tsx는 인증 체크 + 단계 진행도 표시.
+> 초안에서 `(onboarding)` route group으로 표기했으나 URL이 `/intro`로 잡혀 의도와 어긋남 — 일반 segment(`onboarding/`)로 변경하여 `/onboarding/*` 경로를 보장.
 
 #### localStorage draft 스키마
 
@@ -644,24 +643,24 @@ mobile handleWebMessage
 
 ### Phase 2 — `yougabell-web` (api 완료 후)
 
-- [ ] `app/(onboarding)/` route group + layout
-- [ ] 5개 페이지: `intro`, `parent`, `children`, `app-usage`, `done`
-- [ ] `OnboardingDraft` 타입 + `useOnboardingDraft()` 훅
-- [ ] 컴포넌트 5종: `IntroScreen`, `DateTriple`, `SegmentedToggle`, `ChildCard`, `AppUsageMatrix`
-- [ ] `submitOnboarding()` 헬퍼 (draft → API payload 변환)
-- [ ] `notifyMobile()` 헬퍼 (`window.ReactNativeWebView.postMessage`)
-- [ ] `middleware.ts` — `me.onboardedAt` 분기 (미완료 → /onboarding, 완료자 → /)
-- [ ] 재개 다이얼로그 ("이어서 작성하기 / 처음부터")
-- [ ] 분석 이벤트 5종 발사
+- [x] `app/onboarding/` route + layout (route group이 아닌 일반 segment — URL이 `/onboarding/*`)
+- [x] 5개 페이지: `intro`, `parent`, `children`, `app-usage`, `done`
+- [x] `OnboardingDraft` 타입 + `useOnboardingDraft()` 훅 (useSyncExternalStore + localStorage 구독)
+- [x] 컴포넌트 4종: `DateTriple`, `SegmentedToggle`(allowDeselect), `ChildCard`, `AppUsageMatrix`. IntroScreen은 intro 페이지 인라인
+- [x] `buildPayload()` 헬퍼 (done 페이지에서 useMemo로 검증)
+- [x] `notifyMobile()` 헬퍼 + `isNativeWebView()` 감지
+- [△] `proxy.ts` — Next.js 16에서 `middleware.ts` → `proxy.ts` (`export function proxy()`). 게이트 분기는 placeholder, Supabase 세션 통합은 후속
+- [x] 재개 다이얼로그 ("이어서 작성하기 / 처음부터") — derived state 패턴
+- [x] 분석 이벤트 5종 발사 (console.info placeholder, TODO 실제 트래커)
 
 ### Phase 3 — `yougabell-mobile` (web 후속, 또는 web와 병행)
 
-- [ ] `react-native-webview` 컨테이너 (`sharedCookiesEnabled`, `domStorageEnabled`)
-- [ ] `injectedJavaScriptBeforeContentLoaded`로 `__YOUGABELL_NATIVE__` 플래그 주입
-- [ ] `handleWebMessage` (3종 type 처리: `ONBOARDING_COMPLETE` / `REQUEST_PUSH_PERMISSION` / `LOGOUT`)
-- [ ] `requestPushPermission` (expo-notifications)
-- [ ] `expo_push_token` 서버 등록 (별도 endpoint — 본 기획 외)
-- [ ] Android `BackHandler` + WebView `canGoBack()` 처리
+- [x] `react-native-webview` 컨테이너 (`sharedCookiesEnabled`, `thirdPartyCookiesEnabled`, `domStorageEnabled`, `allowsBackForwardNavigationGestures`)
+- [x] `injectedJavaScriptBeforeContentLoaded`로 `__YOUGABELL_NATIVE__` 플래그 주입
+- [x] `handleWebMessage` (3종 type 처리: `ONBOARDING_COMPLETE` / `REQUEST_PUSH_PERMISSION` / `LOGOUT`)
+- [x] `requestPushPermission` (expo-notifications)
+- [ ] `expo_push_token` 서버 등록 (별도 endpoint — 본 기획 외, TODO 주석으로 표시)
+- [x] Android `BackHandler` + WebView `goBack()` 처리 (iOS는 swipe gesture)
 
 ### Phase 4 — `yougabell-admin` (선택, 추후)
 
