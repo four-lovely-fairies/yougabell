@@ -230,13 +230,13 @@ type WeeklyReportCurrentResponse = {
   report: WeeklyReportDetail | null;
   emptyState: null | {
     reason:
-      | 'no_mission_yet'
-      | 'no_mission_for_week'
-      | 'report_generation_pending';
+      | "no_mission_yet"
+      | "no_mission_for_week"
+      | "report_generation_pending";
     title: string;
     description: string;
-    ctaLabel: '미션 시작하기';
-    ctaHref: '/mission';
+    ctaLabel: "미션 시작하기";
+    ctaHref: "/mission";
   };
 };
 
@@ -246,14 +246,14 @@ type WeeklyReportDetail = {
   weekEnd: string; // YYYY-MM-DD
   generatedAt: string;
   headline: {
-    question: '나는 잘하고 있는가?';
+    question: "나는 잘하고 있는가?";
     title: string; // "지금 충분히 잘하고 계십니다."
     body: string | null;
   };
   missionSummary: {
     days: Array<{
-      weekday: 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
-      label: '월' | '화' | '수' | '목' | '금' | '토' | '일';
+      weekday: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+      label: "월" | "화" | "수" | "목" | "금" | "토" | "일";
       completedCount: number;
       completed: boolean;
     }>;
@@ -266,7 +266,7 @@ type WeeklyReportDetail = {
     keyword: string;
   }>;
   keywordEmptyState: null | {
-    title: '아직 키워드가 충분하지 않아요';
+    title: "아직 키워드가 충분하지 않아요";
     description: string;
   };
   bestMoments: Array<{
@@ -282,7 +282,7 @@ type WeeklyReportDetail = {
     tipBody?: string;
   };
   aiActionSuggestion: {
-    title: '미래 행동 제안 (AI 기반)';
+    title: "미래 행동 제안 (AI 기반)";
     body: string;
   };
 };
@@ -394,9 +394,9 @@ type WeeklyReportScreenProps = {
 
 type WeeklyReportEmptyProps = {
   reason:
-    | 'no_mission_yet'
-    | 'no_mission_for_week'
-    | 'report_generation_pending';
+    | "no_mission_yet"
+    | "no_mission_for_week"
+    | "report_generation_pending";
   title: string;
   description: string;
   ctaLabel: string;
@@ -404,8 +404,8 @@ type WeeklyReportEmptyProps = {
 };
 
 type WeeklyKeywordSectionProps = {
-  keywords: WeeklyReportDetail['topKeywords'];
-  emptyState: WeeklyReportDetail['keywordEmptyState'];
+  keywords: WeeklyReportDetail["topKeywords"];
+  emptyState: WeeklyReportDetail["keywordEmptyState"];
 };
 ```
 
@@ -605,21 +605,21 @@ web /weekly-report
 
 ### Phase 2 — `yougabell-web` (api 완료 후)
 
-- [ ] `/weekly-report` route 구현
-- [ ] `WeeklyReportScreen` 구현
-- [ ] `WeeklyReportEmpty` 구현
-- [ ] `MissionWeekSummary` 구현
-- [ ] `WeeklyKeywordSection` 구현
-- [ ] 키워드 없음 empty card 구현
-- [ ] `BestMomentCard` 구현
-- [ ] `InnerStateCard` 구현
-- [ ] `AiActionSuggestionCard` 구현
-- [ ] `useWeeklyReport()` 또는 data loader 구현
-- [ ] API 로딩/에러/빈 상태 처리
-- [ ] "미션 시작하기" CTA `/mission` 연결
+- [x] `/weekly-report` route 구현
+- [x] `WeeklyReportScreen` 구현
+- [x] `WeeklyReportEmpty` 구현
+- [x] `MissionWeekSummary` 구현
+- [x] `WeeklyKeywordSection` 구현
+- [x] 키워드 없음 empty card 구현
+- [x] `BestMomentCard` 구현
+- [x] `InnerStateCard` 구현
+- [x] `AiActionSuggestionCard` 구현
+- [x] `useWeeklyReport()` 또는 data loader 구현
+- [x] API 로딩/에러/빈 상태 처리
+- [x] "미션 시작하기" CTA `/mission` 연결
 - [ ] 알림 bell 동작을 홈과 통일
 - [ ] 분석 이벤트 발사
-- [ ] WebView safe area 적용
+- [x] WebView safe area 적용
 
 ### Phase 3 — `yougabell-mobile` (web 후속)
 
