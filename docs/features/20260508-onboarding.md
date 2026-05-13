@@ -28,7 +28,7 @@ v2 인트로 구성(화면 수·내용)은 **미정** — 와이어프레임의 
   1. 인트로 — 내용·화면 수 미정 (디자인 확정본에서 확인). 우상단 "건너뛰기" 패턴은 유지 가정.
   2. **본인 정보** — 이름, 생년월일, 성별(여성/남성). 직장 유무는 **선택**(일을 하고 있어요 / 전업 가정인이에요 / 미응답)
   3. **자녀 정보** — 이름, 생년월일, 성별(여아/남아), 특이사항. "자녀 추가" 버튼으로 다자녀 입력
-  4. **앱 사용 시간대** — (디자인 재검토 중, 2026-05-08) 요일별 × 시간대 입력. 직장 유무와 무관하게 **모든 사용자**가 입력. 현 v1은 7×5 칩 매트릭스이나 UX 과밀로 기획자에게 개선 요청. 새 안 수령 후 본 섹션 갱신.
+  4. **앱 사용 시간대** — (v3, Figma `2146:4530`, 2026-05-12) **단일 시간대 선택 + 직접 입력**. 5개 카드(오전 08-09 / 오후 12-13 / 저녁 18-20 / 밤 22+ / 직접 입력) 중 1개 선택. preset 선택 시 시간 칩(예: 07:30/08:00/08:30/09:00)으로 세부 시각 변경 가능, custom 선택 시 `<input type="time">`로 HH:MM 입력. 기존 7×5 요일×시간대 매트릭스(v1/v2)는 폐기.
   5. 완료 → 홈
 - **수용 기준**:
   - 필수(`*`) 필드: 본인 이름·생년월일·성별, 자녀 1명 이상의 이름·생년월일·성별. 직장 유무는 **선택**
@@ -42,46 +42,62 @@ v2 인트로 구성(화면 수·내용)은 **미정** — 와이어프레임의 
 
 새 화면이 요구하는 모델 변경.
 
-| 엔티티                   | 변경 종류                                                                                    | 비고                                                                                               |
-| ------------------------ | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `User`                   | 필드 추가 — `workStatus: enum('working','full_time_caregiver') NULLABLE` (**선택**)          | 새 화면 `2010:20364` "직장 유무". 2026-05-08 기획 변경으로 nullable 확정. 미응답 시 콘텐츠 분기 X. |
-| `User.appUsageSlots`     | **신규 1:N** — 요일×시간대 매트릭스. 직장 유무와 독립적으로 전 사용자 수집                   | 새 화면 `2010:20415`. 정규화 테이블 권장 (`UserAppUsageSlot`). 의미: "앱 사용 시간대"              |
-| `User.onboardedAt`       | 필드 추가 — `DateTime?`. 온보딩 완료 시각 1회 기록                                           | 강제 리디렉션 판단(서버 측 단일 boolean 역할). 단계 진척은 클라이언트가 추적                       |
-| `Child`                  | 변경 없음 (기존 `01-user.md`/`02-child.md` 명세와 일치)                                      | name / birthDate / gender / **notes (자유 텍스트, AI 챗봇 컨텍스트 입력)**                         |
-| ~~`OnboardingProgress`~~ | **불필요** — 단계 진척은 디바이스 로컬에서만 추적. DB는 완료 여부(`User.onboardedAt`)만 보유 | 부분 데이터로 DB 점유하지 않음                                                                     |
+| 엔티티                           | 변경 종류                                                                                    | 비고                                                                                                          |
+| -------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `User.workStatus`                | 필드 추가 — `enum('working','full_time_caregiver') NULLABLE` (**선택**)                      | 새 화면 `2010:20364` "직장 유무". 2026-05-08 기획 변경으로 nullable 확정. 미응답 시 콘텐츠 분기 X.            |
+| `User.notificationSlot` (**v3**) | 필드 추가 — `NotificationSlot? enum('morning','afternoon','evening','night','custom')`       | Figma `2146:4530`. 단일 선택. v2 `appUsageSlots[]` 매트릭스 폐기.                                             |
+| `User.notificationTime` (**v3**) | 필드 추가 — `String?` `"HH:MM"`                                                              | custom일 때 필수, preset일 때 선택(미지정 시 시간대 디폴트: 오전 08:00 / 오후 12:00 / 저녁 18:00 / 밤 22:00). |
+| `User.onboardedAt`               | 필드 추가 — `DateTime?`. 온보딩 완료 시각 1회 기록                                           | 강제 리디렉션 판단(서버 측 단일 boolean 역할). 단계 진척은 클라이언트가 추적                                  |
+| `Child`                          | 변경 없음 (기존 `01-user.md`/`02-child.md` 명세와 일치)                                      | name / birthDate / gender / **notes (자유 텍스트, AI 챗봇 컨텍스트 입력)**                                    |
+| ~~`UserAppUsageSlot`~~ (**v3**)  | **폐기** — v2 요일×시간대 1:N 테이블. v3에서 `User.notificationSlot/notificationTime`로 흡수 | Prisma 모델·`TimeSlot` enum 삭제. `Weekday` enum은 `WeeklyReportDay`에서 계속 사용.                           |
+| ~~`OnboardingProgress`~~         | **불필요** — 단계 진척은 디바이스 로컬에서만 추적. DB는 완료 여부(`User.onboardedAt`)만 보유 | 부분 데이터로 DB 점유하지 않음                                                                                |
 
-> 도메인 변경이 확정되면 [`../schema/01-user.md`](../schema/01-user.md) 갱신 + 신규 `UserAppUsageSlot` 섹션 추가.
+> 도메인 변경 반영: [`../schema/01-user.md`](../schema/01-user.md) 참조.
 
-### 신규 테이블 후보 — `UserAppUsageSlot`
+### 알림 시간대 모델 — v3 (단일 선택)
 
-> 이름은 "앱 사용 시간대"로 명시. 의미가 "아이와 함께 있는 시간"이 아니라 **사용자가 앱을 사용할(=알림을 받을) 시간대**임에 유의.
+> v2의 `UserAppUsageSlot` 1:N 매트릭스는 폐기. **User 1행에 알림 시간대 1건**을 직접 저장한다 (Figma `2146:4530`).
 
-| 필드        | 타입                                                      | 비고                                      |
-| ----------- | --------------------------------------------------------- | ----------------------------------------- |
-| `id`        | UUID                                                      | PK                                        |
-| `userId`    | FK → User                                                 |                                           |
-| `dayOfWeek` | `Weekday` (기존 enum 재사용, `mon`–`sun`)                 | `WeeklyReportDay`도 같은 enum 사용        |
-| `slot`      | `enum('morning','afternoon','evening','night','all_day')` | 06–12 / 12–18 / 18–24 / 00–06 / 하루 종일 |
+```prisma
+model User {
+  // ...
+  notificationSlot NotificationSlot?  // 미선택 = null (온보딩 미완료)
+  notificationTime String?            // "HH:MM" — custom 필수, preset 선택
+  // ...
+}
 
-`(userId, dayOfWeek, slot)` UNIQUE.
+enum NotificationSlot {
+  morning   // 디폴트 08:00 (08:00-09:00)
+  afternoon // 디폴트 12:00 (12:00-13:00)
+  evening   // 디폴트 18:00 (18:00-20:00)
+  night     // 디폴트 22:00 (22:00 이후)
+  custom    // notificationTime 직접 지정
+}
+```
+
+검증 룰:
+
+- `notificationSlot`이 `custom`이면 `notificationTime` 필수.
+- preset(`morning/afternoon/evening/night`)이면 `notificationTime`은 시간 칩 중 하나 또는 null(디폴트 사용).
+- `notificationTime` 포맷: `^([01]\d|2[0-3]):[0-5]\d$`.
 
 ---
 
 ## 4. 레포별 작업 분해
 
-| 레포               | 작업                                                                                                                                                                       | 의존성       |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
-| `yougabell-api`    | Prisma — `User.workStatus` (nullable), `User.onboardedAt: DateTime?`, `UserAppUsageSlot` 테이블 신규, 마이그레이션                                                         | 선행 (1순위) |
-|                    | Onboarding 컨트롤러 — **`POST /onboarding/complete`** (Parent + Child[] + AppUsageSlot[] 일괄 atomic) + `GET /me`(onboardedAt 포함)                                        | 1순위        |
-|                    | Auth Guard — `User.onboardedAt == null` 사용자 식별 (보호 라우트에서 401/403 또는 redirect 힌트 응답)                                                                      | 1순위        |
-|                    | OpenAPI export 갱신                                                                                                                                                        | 1순위 후속   |
-| `yougabell-web`    | 라우트 — `app/(onboarding)/intro/`, `parent/`, `children/`, `app-usage/`, `done/` (인트로 하위 구조는 디자인 확정 후 결정)                                                 | api 완료 후  |
-|                    | 컴포넌트 — `IntroScreen`(또는 캐러셀, 디자인 확정 후), `DateTriple`(년/월/일 분리 입력), `SegmentedToggle`(직장 유무는 미선택 허용), `ChildCard`(다자녀), `AppUsageMatrix` | api 후속     |
-|                    | **로컬 저장소 훅** — `useOnboardingDraft()`: localStorage `onboarding:draft:v2` read/write/clear. 단계 이동 시 자동 저장, 완료 응답 200 후 clear                           | api와 병행   |
-|                    | **재개 UX** — `/(onboarding)/intro` 진입 시 draft 존재하면 "이어서 작성하기 / 처음부터" 다이얼로그                                                                         | api 후속     |
-|                    | `proxy.ts` — 인증된 사용자 중 `me.onboardedAt == null`이면 `/onboarding/...` 외 차단                                                                                       | api 후속     |
-| `yougabell-admin`  | 운영자 화면에서 `workStatus`(nullable), `appUsageSlots` 표시(읽기 전용, 마스킹 룰 따름)                                                                                    | api 후속     |
-| `yougabell-mobile` | WebView 컨테이너 + 인증 토큰 브릿지 + `ONBOARDING_COMPLETE` postMessage 수신 후 푸시 권한 요청                                                                             | api/web 병행 |
+| 레포               | 작업                                                                                                                                                                                                                                     | 의존성       |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `yougabell-api`    | Prisma — `User.workStatus` (nullable), `User.onboardedAt: DateTime?`, **v3**: `User.notificationSlot/notificationTime` (v2 `UserAppUsageSlot`·`TimeSlot` 제거), 마이그레이션                                                             | 선행 (1순위) |
+|                    | Onboarding 컨트롤러 — **`POST /onboarding/complete`** (Parent + Child[] + Notification 단건 atomic) + `GET /me`(onboardedAt 포함)                                                                                                        | 1순위        |
+|                    | Auth Guard — `User.onboardedAt == null` 사용자 식별 (보호 라우트에서 401/403 또는 redirect 힌트 응답)                                                                                                                                    | 1순위        |
+|                    | OpenAPI export 갱신                                                                                                                                                                                                                      | 1순위 후속   |
+| `yougabell-web`    | 라우트 — `app/onboarding/intro/`, `parent/`, `children/`, `app-usage/`, `done/`                                                                                                                                                          | api 완료 후  |
+|                    | 컴포넌트 — `IntroScreen`(intro 인라인), `DateInput`(단일 입력 + chevron 네이티브 피커), `SegmentedToggle`(직장 유무 allowDeselect), `ChildCardForm`+`ChildRow`(편집/알약 토글), `NotificationSlotPicker`(5카드 + 시간 칩 + custom HH:MM) | api 후속     |
+|                    | **로컬 저장소 훅** — `useOnboardingDraft()`: localStorage `onboarding:draft:v3` read/write/clear. 단계 이동 시 자동 저장, 완료 응답 200 후 clear                                                                                         | api와 병행   |
+|                    | **재개 UX** — `/(onboarding)/intro` 진입 시 draft 존재하면 "이어서 작성하기 / 처음부터" 다이얼로그                                                                                                                                       | api 후속     |
+|                    | `proxy.ts` — 인증된 사용자 중 `me.onboardedAt == null`이면 `/onboarding/...` 외 차단                                                                                                                                                     | api 후속     |
+| `yougabell-admin`  | 운영자 화면에서 `workStatus`(nullable), `notificationSlot`/`notificationTime` 표시(읽기 전용, 마스킹 룰 따름)                                                                                                                            | api 후속     |
+| `yougabell-mobile` | WebView 컨테이너 + 인증 토큰 브릿지 + `ONBOARDING_COMPLETE` postMessage 수신 후 푸시 권한 요청                                                                                                                                           | api/web 병행 |
 
 ---
 
@@ -90,14 +106,16 @@ v2 인트로 구성(화면 수·내용)은 **미정** — 와이어프레임의 
 #### Prisma schema diff (`yougabell-api/prisma/schema.prisma`)
 
 ```prisma
-// User: 두 Float 필드 제거, workStatus/onboardedAt 추가
+// User: v2(두 Float 필드)에서 workStatus/onboardedAt 추가 → v3에서 algorithmic notification 흡수
 model User {
   // ... 기존 필드 유지
 - weekdayHoursWithChild Float?
 - weekendHoursWithChild Float?
-+ workStatus            WorkStatus?           // nullable (선택 입력)
-+ onboardedAt           DateTime?             // nullable. 온보딩 완료 시각 1회 기록
-+ appUsageSlots         UserAppUsageSlot[]
++ workStatus            WorkStatus?       // nullable (선택 입력)
++ notificationSlot      NotificationSlot? // v3: 단일 시간대 선택 (Figma 2146:4530)
++ notificationTime      String?           // v3: "HH:MM" (custom 필수, preset 선택)
++ onboardedAt           DateTime?         // nullable. 온보딩 완료 시각 1회 기록
+- appUsageSlots         UserAppUsageSlot[] // v3에서 폐기
 }
 
 // 신규 enum (lowercase — 기존 schema 컨벤션)
@@ -106,30 +124,20 @@ enum WorkStatus {
   full_time_caregiver   // "전업 가정인이에요"
 }
 
-// 신규 테이블 — 기존 Weekday enum 재사용
-model UserAppUsageSlot {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @db.Uuid
-  dayOfWeek Weekday  // 기존 enum (mon..sun)
-  slot      TimeSlot
-  createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, dayOfWeek, slot])
-  @@index([userId])
+// v3 신규 enum — v2의 TimeSlot/UserAppUsageSlot 대체
+enum NotificationSlot {
+  morning   // 디폴트 08:00 (08:00-09:00)
+  afternoon // 디폴트 12:00 (12:00-13:00)
+  evening   // 디폴트 18:00 (18:00-20:00)
+  night     // 디폴트 22:00 (22:00 이후)
+  custom    // notificationTime 직접 지정
 }
 
-enum TimeSlot {
-  morning    // 06:00–12:00
-  afternoon  // 12:00–18:00
-  evening    // 18:00–24:00
-  night      // 00:00–06:00
-  all_day
-}
+// 폐기 (v3): UserAppUsageSlot, TimeSlot enum.
+// Weekday enum은 WeeklyReportDay에서 계속 사용하므로 유지.
 ```
 
-- 마이그레이션: `pnpm prisma:migrate:dev --name onboarding_v2`
+- 마이그레이션: v3 도입 시 `pnpm prisma:migrate:dev --name onboarding_v3_notification`
 - `Child` 모델은 변경 없음. 다만 `displayOrder`가 필수 필드라 서비스에서 **입력 순서 idx로 자동 할당**
 - 명명 컨벤션: 기획서 초안의 PascalCase 대신 기존 schema의 **lowercase**를 따름 (`docs/schema/AGENTS.md` "Prisma가 코드 진실의 소스" 원칙)
 
@@ -153,10 +161,10 @@ enum TimeSlot {
     gender: 'female' | 'male'; // required
     notes?: string;          // optional, 자유 텍스트, 최대 1000자
   }>;
-  appUsage: Array<{          // required (빈 배열 허용 — 향후 정책 확정)
-    dayOfWeek: 'mon'|'tue'|'wed'|'thu'|'fri'|'sat'|'sun';
-    slot: 'morning'|'afternoon'|'evening'|'night'|'all_day';
-  }>;
+  notification: {            // required (v3 단건)
+    slot: 'morning'|'afternoon'|'evening'|'night'|'custom';
+    time?: string;           // "HH:MM" — custom 필수, preset 선택(미지정 시 시간대 디폴트)
+  };
 }
 ```
 
@@ -168,8 +176,8 @@ enum TimeSlot {
 - `parent.workStatus`: `@IsOptional() @IsIn([...])`
 - `children`: `@IsArray() @ArrayMinSize(1) @ValidateNested({ each: true })`
 - `children[].notes`: `@IsOptional() @IsString() @MaxLength(1000)`
-- `appUsage`: `@IsArray() @ValidateNested({ each: true })`
-- `appUsage[]` 중복 (`dayOfWeek + slot` 조합): API에서 dedupe 후 insert (UNIQUE 제약 의존하지 않음)
+- `notification.slot`: `@IsEnum(['morning','afternoon','evening','night','custom'])`
+- `notification.time`: `@IsOptional() @Matches(/^([01]\d|2[0-3]):[0-5]\d$/)`. `slot === 'custom'`이면 필수 (서비스 레이어 추가 검증).
 
 **처리 로직** (Prisma 트랜잭션 — atomic):
 
@@ -206,10 +214,13 @@ await prisma.$transaction(async (tx) => {
     })),
   });
 
-  // 4. UserAppUsageSlot[] insert (dedupe 후)
-  const slots = dedupe(dto.appUsage);
-  await tx.userAppUsageSlot.createMany({
-    data: slots.map((s) => ({ userId, dayOfWeek: s.dayOfWeek, slot: s.slot })),
+  // 4. 알림 시간대 단건 적용 (v3: User 컬럼에 직접 저장)
+  await tx.user.update({
+    where: { id: userId },
+    data: {
+      notificationSlot: dto.notification.slot,
+      notificationTime: dto.notification.time ?? null,
+    },
   });
 });
 ```
@@ -226,7 +237,8 @@ await prisma.$transaction(async (tx) => {
   workStatus: 'working' | 'full_time_caregiver' | null;
   onboardedAt: string;   // ISO 8601
   children: Child[];
-  appUsageSlots: UserAppUsageSlot[];
+  notificationSlot: 'morning'|'afternoon'|'evening'|'night'|'custom' | null;
+  notificationTime: string | null; // "HH:MM"
 }
 ```
 
@@ -241,7 +253,7 @@ await prisma.$transaction(async (tx) => {
 
 #### 엔드포인트 — `GET /me`
 
-기존 응답에 `onboardedAt`, `workStatus`, `appUsageSlots` 추가. 미완료 사용자는 `onboardedAt: null`로 응답 (라우트 자체는 `JwtAuthGuard`만, 온보딩 가드 적용 X).
+기존 응답에 `onboardedAt`, `workStatus`, `notificationSlot`, `notificationTime` 추가. 미완료 사용자는 `onboardedAt: null`로 응답 (라우트 자체는 `JwtAuthGuard`만, 온보딩 가드 적용 X).
 
 #### Auth Guard 분기 (`OnboardingCompleteGuard`)
 
@@ -295,27 +307,30 @@ app/
 ```typescript
 type OnboardingDraft = {
   schemaVersion: 2;
-  lastStep: 'intro' | 'parent' | 'children' | 'app-usage';
+  lastStep: "intro" | "parent" | "children" | "app-usage";
   parent?: {
     name?: string;
-    birthDate?: string;       // "YYYY-MM-DD"
-    gender?: 'female' | 'male';
-    workStatus?: 'working' | 'full_time_caregiver' | null;
+    birthDate?: string; // "YYYY-MM-DD"
+    gender?: "female" | "male";
+    workStatus?: "working" | "full_time_caregiver" | null;
   };
   children?: Array<{
-    tempId: string;           // 클라이언트 측 임시 ID
+    tempId: string; // 클라이언트 측 임시 ID
     name?: string;
     birthDate?: string;
-    gender?: 'female' | 'male';
+    gender?: "female" | "male";
     notes?: string;
   }>;
-  appUsage?: Array<{
-    dayOfWeek: 'mon' | ... | 'sun';
-    slot: 'morning' | ... | 'all_day';
-  }>;
-  updatedAt: string;          // ISO 8601 (마지막 갱신 시각)
+  notification?: {
+    // v3: 단건 (custom 선택 시 time 필수)
+    slot: "morning" | "afternoon" | "evening" | "night" | "custom";
+    time?: string; // "HH:MM"
+  };
+  updatedAt: string; // ISO 8601 (마지막 갱신 시각)
 };
 ```
+
+> v3에서 localStorage 키는 `onboarding:draft:v3`, `schemaVersion: 3`. v2 키(`:v2`)는 hook에서 폐기 처리.
 
 #### `useOnboardingDraft()` 훅 인터페이스
 
@@ -349,7 +364,7 @@ async function submitOnboarding(draft: OnboardingDraft) {
       workStatus: draft.parent?.workStatus ?? null, // 미입력은 명시적으로 null
     },
     children: (draft.children ?? []).map(({ tempId, ...rest }) => rest),
-    appUsage: draft.appUsage ?? [],
+    notification: draft.notification!, // 검증 단계에서 존재 보장 (custom이면 time 포함)
   };
 
   const res = await api.post("/onboarding/complete", payload);
@@ -402,17 +417,24 @@ type SegmentedToggleProps<T> = {
   allowDeselect?: boolean; // 직장 유무에서 true
 };
 
-// ChildCard — 다자녀 입력
-type ChildCardProps = {
-  child: Partial<ChildDraft>;
-  onChange: (next: Partial<ChildDraft>) => void;
-  onRemove?: () => void;
+// ChildCardForm — 인라인 편집 모드 (저장 전)
+type ChildCardFormProps = {
+  index: number;
+  child: ChildDraft;
+  onChange: (next: ChildDraft) => void;
 };
 
-// AppUsageMatrix — 디자인 재검토 중. 임시 인터페이스
-type AppUsageMatrixProps = {
-  value: Array<{ dayOfWeek: Weekday; slot: TimeSlot }>;
-  onChange: (next: AppUsageMatrixProps["value"]) => void;
+// ChildRow — 알약 행 (저장 후 표시 모드, 편집/삭제 아이콘 포함)
+type ChildRowProps = {
+  child: ChildDraft;
+  onEdit: () => void;
+  onDelete: () => void;
+};
+
+// NotificationSlotPicker — v3 (Figma 2146:4530). 단일 선택 + 시간 칩 + custom HH:MM
+type NotificationSlotPickerProps = {
+  value: NotificationPreference | null;
+  onChange: (next: NotificationPreference) => void;
 };
 ```
 
@@ -545,12 +567,15 @@ mobile handleWebMessage
 
 ## 5. UI/디자인 참조
 
-| 화면           | Figma 노드      | 상태                   | 비고                                                                                                                                              |
-| -------------- | --------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 인트로         | `2010:20343` 외 | **내용·구성 미정**     | 노드 1개만 확보(💝 + "워킹맘의 하루를 더 의미있게"). 페이지네이션 점 3개가 캐러셀인지 step indicator인지 미확정. **디자인 확정본에서 확인 예정.** |
-| 본인 정보      | `2010:20364`    | OK (필드 변경 요청 중) | 이름·생년월일·성별·직장 유무. 직장 유무는 **선택**으로 전환 (2026-05-08 기획 변경). 디자인 라벨에 "(선택)" 추가 필요.                             |
-| 자녀 정보      | `2010:20549`    | OK                     | 이름·생년월일·성별·특이사항, **자녀 추가** 점선 버튼                                                                                              |
-| 앱 사용 시간대 | `2010:20415`    | **디자인 재검토 중**   | 직장 유무와 무관하게 전 사용자 수집. 요일 7행 × 시간대 5칩 매트릭스가 과밀 — UX 개선 요청 (2026-05-08).                                           |
+| 화면        | Figma 노드                | 상태                    | 비고                                                                                                                              |
+| ----------- | ------------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 인트로      | `2146:4252`               | v3 (Figma 와이어프레임) | 헤드라인 2줄 + 중앙 일러스트 자리 + 검정 "Apple로 계속하기" CTA. (Supabase Auth 미구현이라 현재 동작은 /parent 이동 placeholder.) |
+| 본인 정보   | `2146:4265`               | v3                      | 이름·생년월일(chevron)·성별·직장 유무. 직장 유무는 **선택**(Figma `*`표시는 와이어프레임 상태, 기획상 선택).                      |
+| 자녀 정보   | `2146:5015` / `2146:4912` | v3 (행+편집 2단)        | 알약 행(여아 김유스 1999.01.01 + 편집/삭제) ↔ 카드 폼(저장 모드) 토글. 삭제 시 모달 확인 (`2146:5045`).                           |
+| 알림 시간대 | `2146:4530` / `2146:4703` | v3 (단일 선택)          | 5개 카드(오전/오후/저녁/밤/직접 입력). preset 선택 시 시간 칩 펼침. custom은 `<input type="time">`. v2 매트릭스 폐기.             |
+| 로딩(완료)  | `2146:4771`               | v3                      | 2줄 카피 + 4도트 펄스 인디케이터. `POST /onboarding/complete` 진행 중·완료 화면 겸용.                                             |
+
+> Figma 14개 화면 그룹: `2146:4251` (umbrella). 본 표는 기존 5개 라우트 매칭만 다룸. 신규 화면(관심 주제 `2146:4467`, 서비스 동의 `2146:4786`, 자녀정보-06 카드 폼 진입 분리)은 별도 PR로 분리.
 
 > 사용자가 함께 보낸 8개 노드 중 4개(`2010:20609,20610,20611,20612`)는 Figma 캔버스의 **connector 선**(예: "선택 이후 '다음' 누르면")으로, 화면이 아닌 흐름 표시.
 
@@ -583,14 +608,13 @@ mobile handleWebMessage
 완료 버튼 클릭                         payload 생성                  POST /onboarding/complete
                                                                           ↓
                                                                      Prisma 트랜잭션
-                                                                     - User.workStatus / onboardedAt = now()
+                                                                     - User.workStatus / notificationSlot / notificationTime / onboardedAt = now()
                                                                      - Child[] insert
-                                                                     - UserAppUsageSlot[] insert
                                                                           ↓ 200
 완료 화면                              draft clear                       —
 ```
 
-- **localStorage 키**: `onboarding:draft:v2`, 값은 단계별 입력 객체(JSON)
+- **localStorage 키**: `onboarding:draft:v3` (v2 → v3 변경, 알림 시간대 모델 변경에 따라 schemaVersion bump), 값은 단계별 입력 객체(JSON)
 - **TTL**: 사실상 무제한. 완료 시 명시적 clear
 - **민감정보**: 비밀번호·토큰 같은 민감정보 없음 (이름·생년월일·자녀 정보는 서버 저장 직전까지만 존재)
 - **재진입**: 인트로 진입 시 draft 존재하면 "이어서 작성하기" 옵션 제공
@@ -612,9 +636,7 @@ mobile handleWebMessage
 
 ## 7. 리스크·미해결 질문
 
-- [ ] **앱 사용 시간대 화면 — 디자인 재검토 중 (2026-05-08)**. 현 매트릭스 UX 과밀. 새 안 수령 시:
-  - 입력 모델이 여전히 `요일 × 시간대`인지, 아니면 다른 구조(예: 평일/주말 묶음, 단일 시간대 선택, 자유 입력)로 바뀌는지 확인
-  - 본 기획서의 § 3 (`UserAppUsageSlot` 스키마)와 § 4 web 컴포넌트(`AppUsageMatrix`) 재정의 필요
+- [x] ~~**앱 사용 시간대 화면 — 디자인 재검토 중 (2026-05-08)**~~ → **v3 확정 (2026-05-12)**: 단일 시간대 선택(오전/오후/저녁/밤) + custom HH:MM. § 3 모델·§ 4 web 컴포넌트(`NotificationSlotPicker`) 재정의 완료.
 - [ ] **직장 유무 — 필수 → 선택 전환 (2026-05-08)**. 결정 후속:
   - 디자인에서 라벨에 "(선택)" 추가 또는 별표(`*`) 제거
   - 미응답값(`null`) 처리: 콘텐츠 큐레이션에서 "워킹맘 분기"는 `working`인 경우에만 적용, `null`/`full_time_caregiver`는 일반 분기
@@ -632,19 +654,20 @@ mobile handleWebMessage
 
 ### Phase 0 — 기획 확정 (선행)
 
-- [ ] 인트로 화면 디자인 확정 (캐러셀 vs 단일, 점 의미)
-- [ ] 앱 사용 시간대 화면 새 디자인 수령 — UX 매트릭스 대안
-- [ ] 직장 유무 라벨에 "(선택)" 표기 적용 또는 별표 제거 (디자이너 작업)
+- [x] ~~인트로 화면 디자인 확정~~ → Figma `2146:4252` 단일 화면 + Apple 로그인 CTA (2026-05-12)
+- [x] ~~앱 사용 시간대 화면 새 디자인 수령~~ → Figma `2146:4530` 단일 선택 + custom 입력 (2026-05-12)
+- [ ] 직장 유무 라벨에 "(선택)" 표기 적용 또는 별표 제거 (디자이너 작업) — Figma는 여전히 `*` 표시 중
 - [ ] 직장 유무 완전 제거 가능성 검토 (기획 결정)
 
 ### Phase 1 — `yougabell-api` (선행, 다른 레포 시작 차단)
 
-- [x] Prisma schema 갱신: `User.workStatus`/`onboardedAt`, `UserAppUsageSlot`, `WorkStatus`/`TimeSlot` enum (기존 `Weekday` 재사용). 두 Float 필드(`weekday/weekendHoursWithChild`) 제거
-- [ ] 마이그레이션 실행 (`pnpm prisma:migrate:dev --name onboarding_v2`) — `.env` 셋업 후
+- [x] Prisma schema 갱신 (v2): `User.workStatus`/`onboardedAt`, `UserAppUsageSlot`, `WorkStatus`/`TimeSlot` enum. 두 Float 필드 제거
+- [x] **Prisma schema 갱신 (v3, 2026-05-12)**: `User.notificationSlot`/`notificationTime` 추가, `UserAppUsageSlot`·`TimeSlot` enum 제거, `NotificationSlot` enum 신규
+- [ ] 마이그레이션 실행 (`pnpm prisma:migrate:dev --name onboarding_v3_notification`) — `.env` 셋업 후
 - [x] `OnboardingModule` + `OnboardingController` (`POST /onboarding/complete`)
-- [x] `CompleteOnboardingDto` + `class-validator` 룰 적용 (+ `@nestjs/swagger` 데코레이터)
+- [x] `CompleteOnboardingDto` + `class-validator` 룰 적용 (+ `@nestjs/swagger` 데코레이터) — v3에서 `notification` 단건으로 변경
 - [x] 트랜잭션 처리 (`prisma.$transaction` + 멱등성 `409` 응답)
-- [x] `GET /me` 응답에 `onboardedAt`/`workStatus`/`children`/`appUsageSlots` 포함 (`UsersController`)
+- [x] `GET /me` 응답에 `onboardedAt`/`workStatus`/`children`/`notificationSlot`/`notificationTime` 포함 (`UsersController`)
 - [x] `OnboardingCompleteGuard` (글로벌 `APP_GUARD` + `@SkipOnboardingCheck()` 데코레이터 + `403 ONBOARDING_REQUIRED`)
 - [△] OpenAPI 스펙 export — 코드 작성됨 (`main.ts`에 `SwaggerModule` + `OPENAPI_EXPORT_PATH`). 부팅 검증은 `.env` 셋업 후
 - [ ] **별도 task**: `JwtAuthGuard`가 현재 placeholder(`x-user-id` 헤더). Supabase JWT 검증으로 교체 필요
@@ -654,7 +677,7 @@ mobile handleWebMessage
 - [x] `app/onboarding/` route + layout (route group이 아닌 일반 segment — URL이 `/onboarding/*`)
 - [x] 5개 페이지: `intro`, `parent`, `children`, `app-usage`, `done`
 - [x] `OnboardingDraft` 타입 + `useOnboardingDraft()` 훅 (useSyncExternalStore + localStorage 구독)
-- [x] 컴포넌트 4종: `DateTriple`, `SegmentedToggle`(allowDeselect), `ChildCard`, `AppUsageMatrix`. IntroScreen은 intro 페이지 인라인
+- [x] 컴포넌트 (v3, 2026-05-12 Figma 매칭): `DateInput`(단일 입력 + chevron + 네이티브 피커), `SegmentedToggle`(allowDeselect), `ChildCardForm` + `ChildRow`(편집/알약 토글), `NotificationSlotPicker`(5카드 + 시간 칩 + custom). 공용 `Button`/`Input`/`IconButton` + DESIGN.md 토큰 + Pretendard. v2 `DateTriple`/`AppUsageMatrix`는 폐기.
 - [x] `buildPayload()` 헬퍼 (done 페이지에서 useMemo로 검증)
 - [x] `notifyMobile()` 헬퍼 + `isNativeWebView()` 감지
 - [△] `proxy.ts` — Next.js 16에서 `middleware.ts` → `proxy.ts` (`export function proxy()`). 게이트 분기는 placeholder, Supabase 세션 통합은 후속
@@ -672,7 +695,7 @@ mobile handleWebMessage
 
 ### Phase 4 — `yougabell-admin` (선택, 추후)
 
-- [ ] 사용자 상세 화면에 `workStatus`(nullable) / `appUsageSlots` 표시
+- [ ] 사용자 상세 화면에 `workStatus`(nullable) / `notificationSlot`·`notificationTime` 표시
 - [ ] 개인정보 마스킹 룰 적용
 - [ ] (선택) 검색 필터에 `workStatus`/`onboardedAt` 추가
 
