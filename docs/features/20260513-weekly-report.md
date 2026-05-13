@@ -162,6 +162,7 @@ model WeeklyReportBestMoment {
 type GenerateWeeklyReportsJobInput = {
   weekStart?: string; // YYYY-MM-DD, 수동 재실행/테스트용. 없으면 지난주 월요일
   dryRun?: boolean;
+  forceRegenerate?: boolean;
 };
 ```
 
@@ -188,6 +189,19 @@ type GenerateWeeklyReportsJobInput = {
 - 정기 배치에서 이미 리포트가 있으면 재생성하지 않고 skip한다.
 - 일반 사용자 화면에서는 생성된 리포트를 불변 데이터로 취급한다.
 - 수동 재생성이 필요한 운영/개발 상황에서만 `forceRegenerate=true`로 기존 report와 `days`, `topKeywords`, `bestMoments`, `improvementTips`를 교체한다.
+
+**초기 배치 실행 방식**:
+
+- API 서버는 외부 cron이 호출할 internal endpoint만 제공한다.
+- GitHub Actions schedule을 초기 cron provider로 사용한다.
+- schedule은 `0 15 * * 0`이다. 이는 **일요일 15:00 UTC = 월요일 00:00 KST**다.
+- GitHub Actions는 `POST /internal/weekly-reports/generate`를 호출한다.
+- internal endpoint는 `x-cron-secret` 헤더와 API 서버의 `WEEKLY_REPORT_CRON_SECRET` 환경변수가 일치할 때만 실행한다.
+- GitHub repository secrets:
+  - `YOUGABELL_API_URL`: API production base URL
+  - `WEEKLY_REPORT_CRON_SECRET`: API 서버의 `WEEKLY_REPORT_CRON_SECRET`과 같은 값
+- `workflow_dispatch`로 수동 실행할 수 있으며 `weekStart`, `dryRun`, `forceRegenerate`를 입력할 수 있다.
+- 장기적으로 API 호스팅이 확정되면 해당 호스팅의 managed cron/queue로 대체할 수 있다.
 
 #### 엔드포인트 — `GET /weekly-reports/current`
 
@@ -216,13 +230,13 @@ type WeeklyReportCurrentResponse = {
   report: WeeklyReportDetail | null;
   emptyState: null | {
     reason:
-      | "no_mission_yet"
-      | "no_mission_for_week"
-      | "report_generation_pending";
+      | 'no_mission_yet'
+      | 'no_mission_for_week'
+      | 'report_generation_pending';
     title: string;
     description: string;
-    ctaLabel: "미션 시작하기";
-    ctaHref: "/mission";
+    ctaLabel: '미션 시작하기';
+    ctaHref: '/mission';
   };
 };
 
@@ -232,14 +246,14 @@ type WeeklyReportDetail = {
   weekEnd: string; // YYYY-MM-DD
   generatedAt: string;
   headline: {
-    question: "나는 잘하고 있는가?";
+    question: '나는 잘하고 있는가?';
     title: string; // "지금 충분히 잘하고 계십니다."
     body: string | null;
   };
   missionSummary: {
     days: Array<{
-      weekday: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
-      label: "월" | "화" | "수" | "목" | "금" | "토" | "일";
+      weekday: 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+      label: '월' | '화' | '수' | '목' | '금' | '토' | '일';
       completedCount: number;
       completed: boolean;
     }>;
@@ -252,7 +266,7 @@ type WeeklyReportDetail = {
     keyword: string;
   }>;
   keywordEmptyState: null | {
-    title: "아직 키워드가 충분하지 않아요";
+    title: '아직 키워드가 충분하지 않아요';
     description: string;
   };
   bestMoments: Array<{
@@ -268,7 +282,7 @@ type WeeklyReportDetail = {
     tipBody?: string;
   };
   aiActionSuggestion: {
-    title: "미래 행동 제안 (AI 기반)";
+    title: '미래 행동 제안 (AI 기반)';
     body: string;
   };
 };
@@ -380,9 +394,9 @@ type WeeklyReportScreenProps = {
 
 type WeeklyReportEmptyProps = {
   reason:
-    | "no_mission_yet"
-    | "no_mission_for_week"
-    | "report_generation_pending";
+    | 'no_mission_yet'
+    | 'no_mission_for_week'
+    | 'report_generation_pending';
   title: string;
   description: string;
   ctaLabel: string;
@@ -390,8 +404,8 @@ type WeeklyReportEmptyProps = {
 };
 
 type WeeklyKeywordSectionProps = {
-  keywords: WeeklyReportDetail["topKeywords"];
-  emptyState: WeeklyReportDetail["keywordEmptyState"];
+  keywords: WeeklyReportDetail['topKeywords'];
+  emptyState: WeeklyReportDetail['keywordEmptyState'];
 };
 ```
 
@@ -569,25 +583,25 @@ web /weekly-report
 
 ### Phase 1 — `yougabell-api` (선행, 다른 레포 시작 차단)
 
-- [ ] `WeeklyReportDetail` DTO 정의
-- [ ] Prisma schema 갱신: `WeeklyReport.headlineBody`, `WeeklyReportBestMoment`
-- [ ] 마이그레이션 실행 (`weekly_report_best_moments`)
-- [ ] `GET /weekly-reports/current` endpoint 구현
-- [ ] `GET /weekly-reports/:id` endpoint 구현
-- [ ] active child 선택/소유권 검증
-- [ ] 주간 리포트 생성 서비스 구현
-- [ ] 월요일 00:00 KST 배치 트리거 구현
-- [ ] 자녀별 중복 실행 방지 구현 — 정기 배치 skip, 수동 force 재생성
-- [ ] `WeeklyReportDay` 생성
-- [ ] `WeeklyReportKeyword` Top 3 집계
-- [ ] 키워드 없음 응답 상태 구현
-- [ ] `psychologicalEnergy` 산식 구현
-- [ ] LLM 기반 `headline`/`bestMoments`/`aiActionSuggestion` 생성 또는 fallback 구현
-- [ ] `weekly_report_ready` 알림 생성
-- [ ] OpenAPI 스펙 export 갱신
-- [ ] 테스트: 미션 0건이면 report 미생성
-- [ ] 테스트: 키워드 0건이면 report 생성 + `topKeywords=[]`
-- [ ] 테스트: child ownership
+- [x] `WeeklyReportDetail` DTO 정의
+- [x] Prisma schema 갱신: `WeeklyReport.headlineBody`, `WeeklyReportBestMoment`
+- [x] 마이그레이션 실행 (`weekly_report_best_moments`)
+- [x] `GET /weekly-reports/current` endpoint 구현
+- [x] `GET /weekly-reports/:id` endpoint 구현
+- [x] active child 선택/소유권 검증
+- [x] 주간 리포트 생성 서비스 구현
+- [x] 월요일 00:00 KST 배치 트리거 구현 — GitHub Actions external cron (`0 15 * * 0`)
+- [x] 자녀별 중복 실행 방지 구현 — 정기 배치 skip, 수동 force 재생성
+- [x] `WeeklyReportDay` 생성
+- [x] `WeeklyReportKeyword` Top 3 집계
+- [x] 키워드 없음 응답 상태 구현
+- [x] `psychologicalEnergy` 산식 구현
+- [x] LLM 기반 `headline`/`bestMoments`/`aiActionSuggestion` fallback 구현
+- [x] `weekly_report_ready` 알림 생성
+- [x] OpenAPI 스펙 export 갱신
+- [x] 테스트: 미션 0건이면 report 미생성
+- [x] 테스트: 키워드 0건이면 report 생성 + `topKeywords=[]`
+- [x] 테스트: child ownership
 
 ### Phase 2 — `yougabell-web` (api 완료 후)
 
