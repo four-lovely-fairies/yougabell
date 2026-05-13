@@ -89,12 +89,12 @@ done
 
 ### 환경 변수 채우기
 
-| 레포   | 필수 키                                                                                                                        |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------ |
-| api    | `DATABASE_URL` (Supabase pooled 6543), `DIRECT_URL` (5432), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET` |
-| web    | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_API_BASE_URL`                                        |
-| admin  | 동일 + `SUPABASE_SERVICE_ROLE_KEY` (서버 전용)                                                                                 |
-| mobile | `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_API_BASE_URL`                                        |
+| 레포   | 필수 키                                                                                                                |
+| ------ | ---------------------------------------------------------------------------------------------------------------------- |
+| api    | `DATABASE_URL` (Supabase pooled 6543), `DIRECT_URL` (5432), `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `SUPABASE_JWKS_URL` |
+| web    | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_API_BASE_URL`                         |
+| admin  | 동일 + `SUPABASE_SECRET_KEY` (서버 전용)                                                                               |
+| mobile | `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `EXPO_PUBLIC_API_BASE_URL`                         |
 
 > Supabase 프로젝트 자격증명은 별도 채널로 공유. 레포에 push 금지.
 

@@ -49,17 +49,21 @@ flowchart LR
 
 > 출처: 온보딩02 (`851:6805`)
 
-| 필드                    | 타입                     | 필수 | 설명                                                                                                  | 출처/메모              |
-| ----------------------- | ------------------------ | :--: | ----------------------------------------------------------------------------------------------------- | ---------------------- |
-| `id`                    | `string` (UUID)          |  \*  | PK                                                                                                    | —                      |
-| `name`                  | `string`                 |  \*  | 실명, 예: "홍길동"                                                                                    | `851:6817`             |
-| `birthDate`             | `Date` (yyyy-MM-dd)      |  \*  | 생년월일, 예: `1992-02-01`. UI는 Date Picker                                                          | `851:6822`             |
-| `gender`                | `enum('female','male')`  |  \*  | "여성" / "남성"                                                                                       | `851:6828`, `851:6830` |
-| `weekdayHoursWithChild` | `number` (시간)          |  ?   | 평일 아이와 함께 있는 시간. UI는 자유 입력 텍스트지만 단위는 "시간" 고정 가정                         | `851:6835` "3시간"     |
-| `weekendHoursWithChild` | `number` (시간)          |  ?   | 주말 아이와 함께 있는 시간                                                                            | `851:6840` "3시간"     |
-| `parentingStyleId`      | `FK → ParentingStyle.id` |  ?   | **온보딩에서 설정 X**. 후속 진단/AI 추론으로 채워짐. [10-parenting-style.md](./10-parenting-style.md) | —                      |
-| `createdAt`             | `DateTime`               |  \*  | 가입 일시                                                                                             | —                      |
-| `updatedAt`             | `DateTime`               |  \*  | 갱신 일시                                                                                             | —                      |
+| 필드               | 타입                                                      | 필수 | 설명                                                                                                  | 출처/메모              |
+| ------------------ | --------------------------------------------------------- | :--: | ----------------------------------------------------------------------------------------------------- | ---------------------- |
+| `id`               | `string` (UUID)                                           |  \*  | PK                                                                                                    | —                      |
+| `name`             | `string`                                                  |  \*  | 실명, 예: "홍길동"                                                                                    | `851:6817`             |
+| `birthDate`        | `Date` (yyyy-MM-dd)                                       |  \*  | 생년월일, 예: `1992-02-01`. UI는 Date Picker                                                          | `851:6822`             |
+| `gender`           | `enum('female','male')`                                   |  \*  | "여성" / "남성"                                                                                       | `851:6828`, `851:6830` |
+| `workStatus`       | `enum('working','full_time_caregiver')?`                  |  ?   | 온보딩 v2 추가. 워킹맘/대디 콘텐츠 분기. 미응답 시 일반 분기                                          | `2010:20364` (v2)      |
+| `notificationSlot` | `enum('morning','afternoon','evening','night','custom')?` |  ?   | **온보딩 v3** (2026-05-12). 알림 받을 시간대 단일 선택                                                | `2146:4530` (v3)       |
+| `notificationTime` | `string?` (`HH:MM`)                                       |  ?   | **온보딩 v3**. custom일 때 필수, preset일 때 선택(미지정 시 시간대 디폴트)                            | `2146:4530` (v3)       |
+| `onboardedAt`      | `DateTime?`                                               |  ?   | 온보딩 완료 시각 1회 기록. null = 미완료. 강제 리디렉션 판단                                          | —                      |
+| `parentingStyleId` | `FK → ParentingStyle.id`                                  |  ?   | **온보딩에서 설정 X**. 후속 진단/AI 추론으로 채워짐. [10-parenting-style.md](./10-parenting-style.md) | —                      |
+| `createdAt`        | `DateTime`                                                |  \*  | 가입 일시                                                                                             | —                      |
+| `updatedAt`        | `DateTime`                                                |  \*  | 갱신 일시                                                                                             | —                      |
+
+> v1의 `weekdayHoursWithChild`/`weekendHoursWithChild`(평일·주말 시간)는 v2에서 `UserAppUsageSlot` 1:N 매트릭스로 대체됐고, v3에서 다시 `notificationSlot`/`notificationTime` 단일 컬럼으로 흡수됐다. 상세: [`../features/20260508-onboarding.md` §3](../features/20260508-onboarding.md).
 
 ### 관계 (Relations)
 
