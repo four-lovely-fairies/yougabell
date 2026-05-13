@@ -63,7 +63,8 @@
 | `WeeklyReportBestMoment`     | 신규 테이블    | 베스트 모먼트 여러 건 저장. carousel 표시                                                          |
 | `WeeklyReportImprovementTip` | 기존 모델 사용 | 심리적 에너지/카테고리 기반 추천 팁 연결                                                           |
 | `MissionExecution`           | 변경 없음      | 주간 리포트 생성 여부, 요일별 수행 현황, 누적 수행시간의 원천                                      |
-| `MissionFeedback`            | 변경 없음      | 아이 반응 긍정률, 부모 에너지, 미션 만족도, 베스트 모먼트 후보의 원천                              |
+| `MissionFeedback`            | 변경 없음      | 아이 반응 긍정률, 부모 에너지, 미션 만족도, 베스트 모먼트 선정 점수의 원천                         |
+| `Mission`                    | 변경 없음      | 베스트 모먼트의 제목(`title`)과 본문(`effect`) 원천                                                |
 | `MissionFeedbackKeyword`     | 변경 없음      | 아이 관심 키워드 Top 3의 원천                                                                      |
 | `MentalBatteryCheck`         | 변경 없음      | 사용자의 내면 상태 산출 원천                                                                       |
 | `Notification`               | 기존 모델 사용 | 리포트 생성 시 `weekly_report_ready` 알림 생성                                                     |
@@ -179,9 +180,10 @@ type GenerateWeeklyReportsJobInput = {
 9. `WeeklyReportKeyword`는 `MissionFeedbackKeyword.keyword`를 trim하고 연속 공백을 하나로 정리한 뒤 빈도순 Top 3으로 저장한다. 집계 비교 키는 한글 원문을 보존하되 영문자는 lowercase로 정규화한다. 동률이면 최초 입력 시각이 빠른 키워드를 우선한다.
 10. 키워드가 0건이면 `WeeklyReportKeyword` row를 만들지 않는다.
 11. `psychologicalEnergy`는 해당 주 `MentalBatteryCheck.level` 평균을 0~100으로 환산한다. 체크가 없으면 피드백의 `parentEnergy` 평균을 fallback으로 사용하고, 둘 다 없으면 50으로 둔다.
-12. `headline`, `headlineBody`, `bestMoments`, `aiActionSuggestion`은 집계 데이터와 자녀 컨텍스트를 LLM에 전달해 생성한다. LLM 호출 실패 시 1분 → 5분 → 15분 간격으로 최대 3회 재시도한다.
-13. LLM 재시도 3회가 모두 실패해도 리포트는 생성한다. 이 경우 집계 수치 기반 fallback 문구를 저장하고, 실패 원인은 서버 로그에 남긴다.
-14. 생성 완료 후 `Notification(type='weekly_report_ready', actionType='open_report', targetType='weekly_report', targetId=report.id)` 알림을 생성한다.
+12. `WeeklyReportBestMoment`는 해당 주 피드백 중 `MissionFeedback.childReaction` 최고점을 받은 미션들로 생성한다. 동점이면 모두 저장한다. `title`은 `Mission.title`, `body`는 `Mission.effect`, `label`은 `아이 반응 N점`을 사용한다.
+13. `headline`, `headlineBody`, `aiActionSuggestion`은 집계 데이터와 자녀 컨텍스트를 LLM에 전달해 생성한다. LLM 호출 실패 시 1분 → 5분 → 15분 간격으로 최대 3회 재시도한다.
+14. LLM 재시도 3회가 모두 실패해도 리포트는 생성한다. 이 경우 집계 수치 기반 fallback 문구를 저장하고, 실패 원인은 서버 로그에 남긴다.
+15. 생성 완료 후 `Notification(type='weekly_report_ready', actionType='open_report', targetType='weekly_report', targetId=report.id)` 알림을 생성한다.
 
 **중복 실행 방지**:
 
@@ -447,18 +449,18 @@ type WeeklyKeywordSectionProps = {
 
 ### 4.4 엣지 케이스
 
-| 상황                                      | 처리                                                                                                                    |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| 앱 설치 후 미션 수행 0건                  | Figma `2183:3895` 기준 empty state                                                                                      |
-| 지난주 미션 수행 0건                      | 리포트 row 없음. "지난주에는 리포트로 만들 기록이 없었어요. 이번 주 미션을 시작해보세요." 표시                          |
-| 미션은 했지만 피드백 키워드 0건           | 리포트 표시. 키워드 섹션은 empty state                                                                                  |
-| 미션은 했지만 MissionFeedback 0건         | 아이 반응 긍정률 0%, 키워드 없음. AI 문구에는 피드백 부족 상태 반영                                                     |
-| MentalBatteryCheck 0건                    | `parentEnergy` fallback. 둘 다 없으면 심리적 에너지 50%                                                                 |
-| LLM 생성 실패                             | 1분 → 5분 → 15분 간격으로 최대 3회 재시도. 모두 실패해도 fallback 문구로 리포트 생성                                    |
-| 다자녀 중 A는 미션 있음, B는 미션 없음    | A는 리포트 있음, B는 empty state                                                                                        |
-| 삭제된 자녀                               | 조회/생성 대상에서 제외. `current` 조회와 상세 id 조회 모두 active child만 허용                                         |
-| 배치 중복 실행                            | 정기 배치는 기존 리포트가 있으면 skip. 수동 `forceRegenerate=true`일 때만 기존 리포트와 하위 집계 교체                  |
-| 월요일 00:00 직후 아직 배치가 끝나지 않음 | `report_generation_pending` empty state. "리포트를 준비 중이에요. 준비가 완료되면 적당한 시간에 알림으로 알려드릴게요." |
+| 상황                                      | 처리                                                                                                                                       |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 앱 설치 후 미션 수행 0건                  | Figma `2183:3895` 기준 empty state                                                                                                         |
+| 지난주 미션 수행 0건                      | 리포트 row 없음. "지난주에는 리포트로 만들 기록이 없었어요. 이번 주 미션을 시작해보세요." 표시                                             |
+| 미션은 했지만 피드백 키워드 0건           | 리포트 표시. 키워드 섹션은 empty state                                                                                                     |
+| 미션은 했지만 MissionFeedback 0건         | 아이 반응 긍정률 0%, 키워드 없음. AI 문구에는 피드백 부족 상태 반영                                                                        |
+| MentalBatteryCheck 0건                    | `parentEnergy` fallback. 둘 다 없으면 심리적 에너지 50%                                                                                    |
+| LLM 생성 실패                             | 1분 → 5분 → 15분 간격으로 최대 3회 재시도. 모두 실패해도 fallback 문구로 리포트 생성. 베스트 모먼트는 미션/피드백에서 산출하므로 영향 없음 |
+| 다자녀 중 A는 미션 있음, B는 미션 없음    | A는 리포트 있음, B는 empty state                                                                                                           |
+| 삭제된 자녀                               | 조회/생성 대상에서 제외. `current` 조회와 상세 id 조회 모두 active child만 허용                                                            |
+| 배치 중복 실행                            | 정기 배치는 기존 리포트가 있으면 skip. 수동 `forceRegenerate=true`일 때만 기존 리포트와 하위 집계 교체                                     |
+| 월요일 00:00 직후 아직 배치가 끝나지 않음 | `report_generation_pending` empty state. "리포트를 준비 중이에요. 준비가 완료되면 적당한 시간에 알림으로 알려드릴게요."                    |
 
 ---
 
@@ -496,10 +498,6 @@ LLM 호출이 3회 모두 실패하면 아래 문구를 저장한다. 리포트 
 headline.title: 이번 주도 아이와의 시간을 잘 쌓아가고 있어요.
 headline.body: 짧은 시간이라도 꾸준히 함께한 기록은 아이에게 안정감을 줍니다. 이번 주의 미션 기록을 바탕으로 다음 주에도 부담 없이 이어가보세요.
 
-bestMoments[0].label: 이번 주의 순간
-bestMoments[0].title: 함께한 시간이 쌓였어요
-bestMoments[0].body: 이번 주에 완료한 미션 기록을 바탕으로 아이와 연결된 시간을 확인했어요.
-
 aiActionSuggestion.body: 다음 미션 후 피드백에 아이가 자주 말한 단어나 기억에 남는 반응을 남겨보세요. 다음 리포트에서 아이의 관심사와 변화를 더 자세히 보여드릴게요.
 ```
 
@@ -513,8 +511,8 @@ aiActionSuggestion.body: 다음 미션 후 피드백에 아이가 자주 말한 
 
 ```
 [월요일 00:00 KST 배치]
-MissionExecution / MissionFeedback / MentalBatteryCheck
-  └─ aggregate + LLM
+MissionExecution / MissionFeedback / Mission / MentalBatteryCheck
+  └─ aggregate + best moment selection + LLM copy generation
       └─ WeeklyReport + WeeklyReportDay + WeeklyReportKeyword 저장
 
 [사용자 화면 진입]
@@ -538,7 +536,7 @@ web /weekly-report
 - **보안**:
   - 모든 조회는 userId + child ownership 검증
   - 배치 수동 실행 endpoint를 만들 경우 운영자 guard 필수
-  - LLM 프롬프트에는 필요한 주간 요약 데이터와 자녀 컨텍스트만 전달
+  - LLM 프롬프트에는 필요한 주간 요약 데이터와 자녀 컨텍스트만 전달. 베스트 모먼트 원문은 LLM으로 재작성하지 않는다.
 - **접근성**:
   - back/bell/CTA는 button 요소
   - 미션 요일 row는 요일별 `aria-label` 제공
@@ -563,7 +561,7 @@ web /weekly-report
 - [x] ~~리포트 기본 조회 주차~~ → **직전 완료 주차를 기본으로 조회. 과거 주차는 `weekStart` query로 조회** (2026-05-13)
 - [x] ~~배치 실패/지연 시 사용자 안내~~ → **`report_generation_pending` empty state로 "리포트를 준비 중이에요. 준비가 완료되면 적당한 시간에 알림으로 알려드릴게요." 표시** (2026-05-13)
 - [x] ~~베스트 모먼트 개수~~ → **여러 개 가능. API는 `bestMoments[]`, web은 carousel로 표시** (2026-05-13)
-- [x] ~~LLM 생성 실패 fallback 문구 세트~~ → **최대 3회 재시도 후 집계 기반 fallback 문구로 리포트 생성** (2026-05-13)
+- [x] ~~LLM 생성 실패 fallback 문구 세트~~ → **최대 3회 재시도 후 집계 기반 fallback 문구로 리포트 생성. 베스트 모먼트는 미션/피드백에서 산출** (2026-05-13)
 - [x] ~~리포트 상세 라우트~~ → **`/weekly-report?reportId=<id>` query route로 확정** (2026-05-13)
 
 ---
@@ -596,7 +594,8 @@ web /weekly-report
 - [x] `WeeklyReportKeyword` Top 3 집계
 - [x] 키워드 없음 응답 상태 구현
 - [x] `psychologicalEnergy` 산식 구현
-- [x] LLM 기반 `headline`/`bestMoments`/`aiActionSuggestion` fallback 구현
+- [x] `MissionFeedback.childReaction` 최고점 기반 `bestMoments` 구현
+- [x] LLM 기반 `headline`/`aiActionSuggestion` fallback 구현
 - [x] `weekly_report_ready` 알림 생성
 - [x] OpenAPI 스펙 export 갱신
 - [x] 테스트: 미션 0건이면 report 미생성
