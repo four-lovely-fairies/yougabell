@@ -24,17 +24,36 @@ v2 인트로 구성(화면 수·내용)은 **미정** — 와이어프레임의 
 
 - **누가**: 첫 회원가입(Supabase Auth) 직후의 사용자(워킹맘/대디)
 - **언제**: 가입 후 자동 진입. 미완료 시 홈 진입 시 강제 리디렉션.
-- **흐름**:
-  1. 인트로 — 내용·화면 수 미정 (디자인 확정본에서 확인). 우상단 "건너뛰기" 패턴은 유지 가정.
-  2. **본인 정보** — 이름, 생년월일, 성별(여성/남성). 직장 유무는 **선택**(일을 하고 있어요 / 전업 가정인이에요 / 미응답)
-  3. **자녀 정보** — 이름, 생년월일, 성별(여아/남아), 특이사항. "자녀 추가" 버튼으로 다자녀 입력
-  4. **앱 사용 시간대** — (v3, Figma `2146:4530`, 2026-05-12) **단일 시간대 선택 + 직접 입력**. 5개 카드(오전 08-09 / 오후 12-13 / 저녁 18-20 / 밤 22+ / 직접 입력) 중 1개 선택. preset 선택 시 시간 칩(예: 07:30/08:00/08:30/09:00)으로 세부 시각 변경 가능, custom 선택 시 `<input type="time">`로 HH:MM 입력. 기존 7×5 요일×시간대 매트릭스(v1/v2)는 폐기.
-  5. 완료 → 홈
+- **흐름 (v4, 2026-05-15 확정)**:
+  1. **인트로** (Figma `2146:4252`) — Apple 로그인 CTA. (Supabase Auth 미구현이라 placeholder)
+  2. **이용약관 동의 (bottom sheet)** (Figma `2146:4786`) — 별도 step. 전체동의 / 서비스 이용약관(필수) / 개인정보 처리방침(필수) / 마케팅 수신동의(선택). 필수 2건 충족 시 다음 활성.
+  3. **본인 정보** (Figma `2146:4265`) — 이름, 생년월일(bottom sheet 휠 피커), 성별, 직장 유무(선택).
+  4. **관심 주제** (Figma `2146:4467`) — 6 카드(워킹맘·대디 / 가정보육·집놀이 / 말문터지기 / 사회성·또래관계 / 신체발달·에너지발산 / 똑똑한인지학습) 중 **최대 3개** 선택.
+  5. **알림 권한 OS 모달** (분기점) — 디바이스 OS의 알림 권한 요청 다이얼로그를 표시.
+     - **허용(yes)** → ⑥ 알림 시간대 설정 → ⑦ 자녀 정보
+     - **거부(no)** → ⑦ 자녀 정보 (시간대 설정 skip, `notificationSlot=null` 저장)
+  6. **알림 시간대 설정** (Figma `2146:4530` / `2146:4703`) — 5 카드(오전/오후/저녁/밤/직접 입력) 중 1 선택. preset은 시간 칩, custom은 bottom sheet의 `HH:MM` 입력.
+  7. **자녀 정보 입력** (Figma `2146:4912` / `2146:5015` 등) — 이름·생년월일(bottom sheet)·성별·특이사항. 다자녀 추가/편집/삭제. **최소 1명 필수**.
+  8. **로딩(완료)** (Figma `2146:4771`) — `POST /onboarding/complete` 진행 → 홈으로.
+
+- **흐름 다이어그램**:
+
+  ```mermaid
+  flowchart LR
+      A[인트로] --> B[이용약관 동의<br/>bottom sheet]
+      B --> C[본인 정보]
+      C --> D[관심 주제]
+      D --> E{알림 권한<br/>OS 모달}
+      E -- 허용 --> F[알림 시간대]
+      E -- 거부 --> G[자녀 정보]
+      F --> G
+      G --> H[로딩·완료]
+  ```
+
 - **수용 기준**:
-  - 필수(`*`) 필드: 본인 이름·생년월일·성별, 자녀 1명 이상의 이름·생년월일·성별. 직장 유무는 **선택**
-  - 인트로 "건너뛰기"는 본인 정보까지만 스킵, 자녀 정보·앱 사용 시간대는 필수
-  - 다자녀 N명 등록 가능 (최소 1명)
-  - 앱 사용 시간대 검증 룰은 새 디자인 수령 후 확정
+  - 필수: 약관 필수 2건 / 본인 이름·생년월일·성별 / 관심 주제 1개 이상 / 자녀 1명 이상. 직장 유무·알림·마케팅은 선택.
+  - 알림 거부 시 시간대 화면은 건너뛰고 `User.notificationSlot=null`로 저장.
+  - 다자녀 N명 등록 가능 (최소 1명).
 
 ---
 
@@ -285,18 +304,24 @@ await prisma.$transaction(async (tx) => {
 
 ### 4.2 yougabell-web 상세 스펙
 
-#### 라우트 구조
+#### 라우트 구조 (v4, 2026-05-15)
 
 ```
 app/
-└── onboarding/           # 일반 segment (route group 아님 — URL에 onboarding 포함)
+└── onboarding/           # 일반 segment (URL에 onboarding 포함)
     ├── layout.tsx        # 모바일 뷰 컨테이너 + safe-area
-    ├── intro/page.tsx    # 디자인 확정 전 placeholder
-    ├── parent/page.tsx
-    ├── children/page.tsx
-    ├── app-usage/page.tsx
-    └── done/page.tsx     # 완료 후 홈으로 redirect
+    ├── page.tsx          # /onboarding 진입 시 /onboarding/intro로 redirect
+    ├── intro/page.tsx
+    ├── consent/page.tsx       # 약관 동의 (bottom sheet가 메인 — 페이지는 시트를 띄우는 컨테이너)
+    ├── parent/page.tsx        # 본인 정보 (생년월일 bottom sheet)
+    ├── interest/page.tsx      # 관심 주제 (6 카드 max 3)
+    ├── notification/page.tsx  # OS 권한 요청 모달 — 분기점
+    ├── app-usage/page.tsx     # 알림 허용 시만 진입
+    ├── children/page.tsx      # 자녀 정보 (마지막 입력)
+    └── done/page.tsx          # 로딩·완료 → 홈
 ```
+
+흐름: `intro → consent → parent → interest → notification → (허용: app-usage → children / 거부: children) → done`
 
 > 초안에서 `(onboarding)` route group으로 표기했으나 URL이 `/intro`로 잡혀 의도와 어긋남 — 일반 segment(`onboarding/`)로 변경하여 `/onboarding/*` 경로를 보장.
 
@@ -675,12 +700,18 @@ mobile handleWebMessage
 ### Phase 2 — `yougabell-web` (api 완료 후)
 
 - [x] `app/onboarding/` route + layout (route group이 아닌 일반 segment — URL이 `/onboarding/*`)
-- [x] 5개 페이지: `intro`, `parent`, `children`, `app-usage`, `done`
+- [x] 페이지 (v3): `intro`, `parent`, `children`, `app-usage`, `done`
+- [x] **v4 흐름 갱신 (2026-05-15)** — 페이지 추가·재배치:
+  - 신규: `consent/`(별도 step), `interest/`(관심 주제), `notification/`(OS 권한 모달 분기)
+  - 재배치: `children`을 마지막(`app-usage` 다음)으로, `interest`를 `parent` 다음으로
+  - 흐름: intro→consent→parent→interest→notification→(허용:app-usage→children / 거부:children)→done
 - [x] `OnboardingDraft` 타입 + `useOnboardingDraft()` 훅 (useSyncExternalStore + localStorage 구독)
-- [x] 컴포넌트 (v3, 2026-05-12 Figma 매칭): `DateInput`(단일 입력 + chevron + 네이티브 피커), `SegmentedToggle`(allowDeselect), `ChildCardForm` + `ChildRow`(편집/알약 토글), `NotificationSlotPicker`(5카드 + 시간 칩 + custom). 공용 `Button`/`Input`/`IconButton` + DESIGN.md 토큰 + Pretendard. v2 `DateTriple`/`AppUsageMatrix`는 폐기.
+- [x] 컴포넌트 (v3): `DateInput`(휠 bottom sheet), `SegmentedToggle`(allowDeselect), `ChildCardForm` + `ChildRow`, `NotificationSlotPicker`(5카드 + 시간 칩 + custom)
+- [x] **v4 신규 컴포넌트 (2026-05-15)**: `ConsentBottomSheet`(전체동의 + 3개 약관), `InterestCard`(이모지 + 라벨, max 3 토글), `NotificationPermissionPrompt`(OS 권한 요청·분기 처리)
+- [x] **OnboardingDraft 확장 (v4)**: `consents`(서비스/개인정보/마케팅), `interests`(InterestId[]), `notificationPermission`("granted"|"denied"|null)
 - [x] `buildPayload()` 헬퍼 (done 페이지에서 useMemo로 검증)
 - [x] `notifyMobile()` 헬퍼 + `isNativeWebView()` 감지
-- [△] `proxy.ts` — Next.js 16에서 `middleware.ts` → `proxy.ts` (`export function proxy()`). 게이트 분기는 placeholder, Supabase 세션 통합은 후속
+- [△] `proxy.ts` — 게이트 분기는 placeholder, Supabase 세션 통합은 후속
 - [x] 재개 다이얼로그 ("이어서 작성하기 / 처음부터") — derived state 패턴
 - [x] 분석 이벤트 5종 발사 (console.info placeholder, TODO 실제 트래커)
 
