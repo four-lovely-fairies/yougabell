@@ -152,6 +152,10 @@ yougabell-mobile (Expo)      │
   - 흐름: 변경 → 기능별 그룹핑 commit → `git push -u origin <branch>` → `gh pr create` → 사용자 확인 후 `gh pr merge --merge --delete-branch`
   - 단일 typo·comment 수준 미세 변경도 branch가 안전. main 직접 push는 PR 단위 추적·롤백을 깨뜨림
   - 동일 레포에서 여러 에이전트 동시 작업 시 더더욱 — 작업은 **기능별 브랜치** 분리, 커밋은 **기능별 그룹핑**(전체 묶음 commit 금지), 통합은 PR 단위
+- **연속 PR 금지 — 동일 주제 변경은 한 branch에 commit 누적 후 1 PR로 묶기** (2026-05-17 사용자 확정).
+  - 화면별·항목별로 매번 PR 생성·머지를 반복하지 말고, 작업 단락이 끝나면 한 번에 push·PR
+  - 예: "온보딩 디자인 검증"이라는 단락은 화면 14개 변경을 한 branch에 누적 → 1 PR
+  - 예외: 빌드 깨진 hotfix 등 즉시 머지 필요한 단일 변경은 별도 PR OK
 - Codex는 Claude Code의 Skill 자동 트리거 메커니즘이 없음 — 공통 워크플로우는 **`AGENTS.md`에 직접 서술**해 양쪽이 동일하게 따르도록 함
 
 ### 결정 사항 반영
