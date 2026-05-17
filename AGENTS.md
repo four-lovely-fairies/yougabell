@@ -148,10 +148,10 @@ yougabell-mobile (Expo)      │
 
 - 모든 에이전트는 **동일한 `AGENTS.md`를 단일 진실로 읽음** — Claude Code는 `CLAUDE.md`의 `@AGENTS.md`로 import, Codex는 직접 로드
 - 컨벤션·아키텍처 변경 시 **`AGENTS.md`만 수정** (CLAUDE.md는 import 래퍼라 손대지 않음)
-- 동일 레포에서 여러 에이전트가 동시 작업 시:
-  - 작업은 **기능별 브랜치**로 분리
-  - 커밋은 **기능별 그룹핑** (전체 묶음 커밋 금지)
-  - 통합은 PR 단위
+- **모든 변경(단일·다중 에이전트 무관)은 main 직접 push 금지** — 반드시 branch 분리 + PR로 원격 반영 (2026-05-17 사용자 확정).
+  - 흐름: 변경 → 기능별 그룹핑 commit → `git push -u origin <branch>` → `gh pr create` → 사용자 확인 후 `gh pr merge --merge --delete-branch`
+  - 단일 typo·comment 수준 미세 변경도 branch가 안전. main 직접 push는 PR 단위 추적·롤백을 깨뜨림
+  - 동일 레포에서 여러 에이전트 동시 작업 시 더더욱 — 작업은 **기능별 브랜치** 분리, 커밋은 **기능별 그룹핑**(전체 묶음 commit 금지), 통합은 PR 단위
 - Codex는 Claude Code의 Skill 자동 트리거 메커니즘이 없음 — 공통 워크플로우는 **`AGENTS.md`에 직접 서술**해 양쪽이 동일하게 따르도록 함
 
 ### 결정 사항 반영
