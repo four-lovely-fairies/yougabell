@@ -15,7 +15,7 @@
 | `title`                   | `string`                    |  \*  | 카드 제목, 예: "아이와 10분 가까워지기"                                  | `851:3340`                       |
 | `shortTitle`              | `string`                    |  \*  | 상세 페이지 헤더, 예: "10분 아이컨텍"                                    | `851:3340`                       |
 | `description`             | `string`                    |  \*  | 상세 본문                                                                | `851:3340`                       |
-| `durationMinutes`         | `number`                    |  \*  | 예: 10, 7                                                                | `851:3340`, `851:4603` "7분"     |
+| `durationMinutes`         | `number`                    |  \*  | 예: 10, 7. 타이머 계산의 기준 분 단위                                    | `851:3340`, `851:4603` "7분"     |
 | `effect`                  | `string`                    |  \*  | 카피, 예: "정서적 안정감"                                                | `851:3340`                       |
 | `subThemeLabel`           | `string`                    |  ?   | UI 상단 칩에 노출되는 보조 라벨. 예: "아이와 가까워지기" (카테고리 아님) | `851:3410`                       |
 | `tags`                    | `string[]`                  |  ?   | 검색·필터용                                                              | TBD                              |
@@ -56,17 +56,20 @@ flowchart LR
 
 > 출처: Mission Timer (`851:5197`), Mission Timer Resume (`851:5266`), Mission Home_complete (`851:3488`)
 
-| 필드                    | 타입                                                                     | 필수 | 설명                   | 출처                                                                    |
-| ----------------------- | ------------------------------------------------------------------------ | :--: | ---------------------- | ----------------------------------------------------------------------- |
-| `id`                    | `string`                                                                 |  \*  | PK                     | —                                                                       |
-| `userId`                | `FK → User.id`                                                           |  \*  | —                      | —                                                                       |
-| `childId`               | `FK → Child.id`                                                          |  \*  | 어떤 아이와 수행했는지 | `851:3866`                                                              |
-| `missionId`             | `FK → Mission.id`                                                        |  \*  | —                      | —                                                                       |
-| `status`                | `enum('in_progress','paused','completed','early_completed','cancelled')` |  \*  | —                      | `851:5197` "멈추기", `851:5266` "다시 시작하기", `851:5197` "조기 완료" |
-| `startedAt`             | `DateTime`                                                               |  \*  | —                      | —                                                                       |
-| `completedAt`           | `DateTime`                                                               |  ?   | 종료 시각              | —                                                                       |
-| `actualDurationSeconds` | `number`                                                                 |  ?   | 실제 수행 시간         | 타이머 `851:5197` "09:44"                                               |
-| `wasEarlyCompleted`     | `boolean`                                                                |  \*  | 디폴트 false           | `851:5197`                                                              |
+| 필드                     | 타입                                                                     | 필수 | 설명                                                                               | 출처                                                                    |
+| ------------------------ | ------------------------------------------------------------------------ | :--: | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `id`                     | `string`                                                                 |  \*  | PK                                                                                 | —                                                                       |
+| `userId`                 | `FK → User.id`                                                           |  \*  | —                                                                                  | —                                                                       |
+| `childId`                | `FK → Child.id`                                                          |  \*  | 어떤 아이와 수행했는지                                                             | `851:3866`                                                              |
+| `missionId`              | `FK → Mission.id`                                                        |  \*  | —                                                                                  | —                                                                       |
+| `status`                 | `enum('in_progress','paused','completed','early_completed','cancelled')` |  \*  | —                                                                                  | `851:5197` "멈추기", `851:5266` "다시 시작하기", `851:5197` "조기 완료" |
+| `startedAt`              | `DateTime`                                                               |  \*  | 최초 시작 시각                                                                     | —                                                                       |
+| `activeSegmentStartedAt` | `DateTime`                                                               |  ?   | 현재 진행 중 segment 시작 시각. `in_progress`일 때만 값이 있다                     | 타이머 복구용                                                           |
+| `pausedAt`               | `DateTime`                                                               |  ?   | 마지막 일시정지 시각. `paused`일 때만 값이 있다                                    | 타이머 복구용                                                           |
+| `elapsedSeconds`         | `number`                                                                 |  \*  | 현재 segment를 제외하고 누적 저장된 진행 시간(초). pause/resume 복구의 기준값      | 타이머 복구용                                                           |
+| `completedAt`            | `DateTime`                                                               |  ?   | 종료 시각                                                                          | —                                                                       |
+| `actualDurationSeconds`  | `number`                                                                 |  ?   | 최종 실제 수행 시간. `completed`면 보통 전체 시간, `early_completed`면 중간 종료값 | 타이머 `851:5197` "09:44"                                               |
+| `wasEarlyCompleted`      | `boolean`                                                                |  \*  | 디폴트 false                                                                       | `851:5197`                                                              |
 
 ### 상태 전이
 
@@ -92,8 +95,40 @@ stateDiagram-v2
 
 **TBD**
 
-- `paused` 상태가 DB에 저장되는지(서버 sync), 클라이언트 메모리만인지
 - 타이머 시작 후 X분 이상 비활동 시 자동 cancel 정책
+
+### 타이머 복구 계산 규칙
+
+- 미션 총 시간(초) = `Mission.durationMinutes * 60`
+- `in_progress`일 때 현재 누적 진행 시간:
+
+```text
+elapsedSeconds + (now - activeSegmentStartedAt)
+```
+
+- `paused`일 때 현재 누적 진행 시간:
+
+```text
+elapsedSeconds
+```
+
+- 남은 시간:
+
+```text
+Mission.durationMinutes * 60 - currentElapsedSeconds
+```
+
+- `pause` 시:
+  - `elapsedSeconds += now - activeSegmentStartedAt`
+  - `activeSegmentStartedAt = null`
+  - `pausedAt = now`
+  - `status = 'paused'`
+- `resume` 시:
+  - `activeSegmentStartedAt = now`
+  - `pausedAt = null`
+  - `status = 'in_progress'`
+
+> `startedAt`만으로는 pause/resume 이후 정확한 남은 시간을 복구할 수 없으므로, `elapsedSeconds`와 `activeSegmentStartedAt`를 함께 저장한다.
 
 ---
 
