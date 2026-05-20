@@ -1,23 +1,27 @@
-# 미션 시작/타이머 (Mission Start & Timer v01)
+# 미션 플로우 (Mission Flow v02)
 
-> 작성일: 2026-05-18 · 작성자: — · 상태: `draft`
+> 작성일: 2026-05-18 · 최종 수정: 2026-05-19 · 상태: `draft`
 > Figma 파일: [Yougabell OS Figma](https://www.figma.com/design/sKdG5GEBZPdMjFY9nYj5g0)
 >
 > **미션 소개 노드**: `2395:10007` (`미션 시작하기 - 02`)
 > **미션 타이머 노드**: `2395:9927` (`미션 타이머 - 03`)
+> **미션 효과 노드**: `2395:10109` (`미션 효과 - 04`)
+> **미션 피드백 노드**: `2395:9759` (`미션 피드백 - 05`)
+> **피드백 완료 노드**: `2395:10071` (`피드백 작성 완료 - 06`)
 
 ---
 
 ## 1. 배경 (Why)
 
-홈의 "미션 시작하기"와 하단 탭 "10분 놀이"는 육아밸의 가장 자주 쓰이는 진입점이다. 지금까지는 홈에서 추천 미션 카드만 보여주고 실제 수행 플로우가 연결되지 않았다. 이번 기능은 사용자가 추천 미션을 보고 바로 시작하고, 수행 중인 10분 상호작용을 타이머로 따라갈 수 있게 만드는 첫 단계다.
+홈의 "미션 시작하기"와 하단 탭 "10분 놀이"는 육아밸의 가장 자주 쓰이는 진입점이다. v01에서는 사용자가 추천 미션을 보고 시작하고, 수행 중인 10분 상호작용을 타이머로 따라갈 수 있게 만드는 첫 단계를 정의했다.
 
-이번 v01 범위는 다음 두 화면을 구현한다.
+이번 v02 범위는 타이머 뒤의 후속 플로우를 마무리한다.
 
-- 미션 소개 화면
-- 미션 타이머 화면
+- 미션 효과 화면
+- 미션 피드백 화면
+- 피드백 작성 완료 화면
 
-미션 종료 후 이동하는 "미션 효과/다음 단계" 화면은 이번 범위에서 제외하고, 타이머 종료·조기완료 시점의 전이 계약만 문서에 남긴다.
+이 단계까지 연결되어야 `MissionExecution -> MissionFeedback -> 주간 리포트 집계` 흐름이 닫힌다.
 
 ---
 
@@ -27,272 +31,162 @@
 - **언제**:
   - 홈의 오늘 미션 카드에서 "미션 시작하기"를 누를 때
   - 하단 탭 "10분 놀이"를 누를 때
-  - 이후 미션 소개 화면에서 다시 "미션 시작하기"를 누를 때
+  - 타이머가 0이 되거나 조기완료를 누른 직후
 - **흐름**:
   1. 사용자는 홈 또는 하단 탭에서 미션 소개 화면으로 진입한다.
   2. 시스템은 현재 선택된 자녀 기준 오늘의 추천 미션 1건을 조회해 제목, 설명, 시간, 카테고리, 출처를 보여준다.
   3. 사용자가 "미션 시작하기"를 누르면 `MissionExecution`이 생성되고 타이머 화면으로 이동한다.
-  4. 타이머 화면은 생성된 수행 인스턴스 기준으로 남은 시간을 초 단위로 표시한다.
-  5. 사용자가 앱을 나갔다 돌아와도 진행 중인 미션이 있으면 같은 타이머 화면으로 복귀할 수 있어야 한다.
-  6. 타이머가 0이 되거나 사용자가 "조기완료"를 누르면 다음 단계(미션 효과 화면)로 이동한다.
+  4. 사용자는 타이머를 진행하거나 pause/resume한다.
+  5. 타이머가 0이 되거나 사용자가 "조기완료"를 누르면 `MissionExecution`이 종료되고 효과 화면으로 이동한다.
+  6. 효과 화면의 "다음"을 누르면 피드백 작성 화면으로 이동한다.
+  7. 사용자는 아이 반응(1~5), 부모 에너지(0~10), 미션 만족도(1~5), 오늘 아이가 많이 말한 단어를 입력한다.
+  8. "미션 완료"를 누르면 `MissionFeedback`이 저장되고 피드백 완료 화면으로 이동한다.
+  9. 완료 화면에서 "홈으로 가기"를 누르면 홈으로 이동한다.
 - **수용 기준**:
-  - 미션 소개 화면은 하단 탭을 숨기고 별도 sub LNB를 사용한다.
-  - 미션 시작 시점에 `MissionExecution.status='in_progress'` row가 1건 생성된다.
-  - 같은 자녀 기준 진행 중(`in_progress` 또는 `paused`)인 `MissionExecution`이 있으면 새 row를 만들지 않고 기존 수행을 재사용한다.
-  - 타이머는 `Mission.durationMinutes * 60`을 기준으로 감소한다.
-  - 타이머는 새로고침/재진입 시에도 서버 시각 기준으로 복원 가능해야 한다.
-  - 타이머 종료 또는 조기완료 후의 효과/피드백 화면은 후속 범위지만, 실행 상태 전이는 이번 계약에 포함한다.
+  - 효과/피드백/완료 화면은 모두 하단 탭을 숨기고 별도 sub LNB를 사용한다.
+  - 종료된 `MissionExecution.status`는 `completed` 또는 `early_completed`여야 한다.
+  - `MissionFeedback`은 한 execution당 1건만 생성된다.
+  - 피드백 저장 후 주간 리포트 집계에 필요한 값이 모두 채워진다.
+  - 피드백 화면 재진입 시 이미 작성된 값이 있으면 재편집 가능하다.
 
 ---
 
 ## 3. 도메인 영향
 
-기존 `docs/schema/05-mission.md`에 `Mission`, `MissionExecution`, `MissionFeedback`이 정의돼 있다. 이번 기능은 새로운 도메인 엔티티를 추가하기보다, 이미 있는 `MissionExecution`을 실제로 시작/복구하는 API 계약을 확정한다.
+이번 범위는 `MissionExecution` 종료 이후의 효과/피드백 도메인 계약을 확정한다.
 
-| 엔티티                        | 변경 종류     | 비고                                                                            |
-| ----------------------------- | ------------- | ------------------------------------------------------------------------------- |
-| `Mission`                     | 변경 없음     | 미션 소개 화면에서 `title`, `description`, `durationMinutes`, `effect` 등 사용  |
-| `MissionExecution`            | 필드 추가     | pause/resume 복구용 `activeSegmentStartedAt`, `pausedAt`, `elapsedSeconds` 추가 |
-| `HomeDashboard` (DTO)         | 변경 없음     | 홈의 `recommendedMission.id`를 미션 소개 진입에 사용                            |
-| `MissionEntry` (DTO, DB 아님) | 신규 응답 DTO | 미션 소개/타이머 화면에서 공통으로 쓰는 조회 응답                               |
+| 엔티티                   | 변경 종류   | 비고                                                                               |
+| ------------------------ | ----------- | ---------------------------------------------------------------------------------- |
+| `Mission`                | 변경 없음   | 기존 `effect`를 효과 화면 문구로 재사용. `goal`, `subThemeLabel` 등 기존 필드 유지 |
+| `MissionExecution`       | 변경 없음   | 종료 상태/실제 수행 시간은 v01에서 확정한 로직 유지                                |
+| `MissionFeedback`        | 스키마 변경 | `parentEnergy` 저장 범위를 0..10으로 확장해 slider 값을 그대로 저장                |
+| `MissionFeedbackKeyword` | 사용 확정   | 피드백 textarea 입력을 정규화해 rank 1..N 저장                                     |
 
-> `docs/schema/05-mission.md`의 TBD 중 "paused 상태를 DB에 저장하는지"는 **서버 DB에 저장**으로 확정한다. 타이머 복구와 멀티 디바이스 일관성을 위해 클라이언트 메모리만으로는 부족하다.
+### 키워드 저장 규칙
 
-### `MissionExecution` 상태 전이 확정
+- 피드백 textarea는 자유 입력 문자열 1개를 받는다.
+- 서버는 이 문자열을 콤마(`,`), 줄바꿈, 연속 공백 기준으로 정규화한다.
+- 빈 문자열 제거 후 최대 10개까지 `MissionFeedbackKeyword(rank, keyword)`로 저장한다.
+- 영문은 lowercase 정규화, 한국어는 원문 유지한다.
+- `MissionFeedback.note`에는 사용자가 입력한 원문을 그대로 보존한다.
 
-```text
-not started
-  -> in_progress      (미션 시작하기)
-in_progress
-  -> paused           (멈추기)
-  -> completed        (시간 만료)
-  -> early_completed  (조기완료)
-paused
-  -> in_progress      (다시 시작하기)
-  -> early_completed  (조기완료)
-```
+### 부모 에너지 점수 정책
 
-### Prisma schema diff
-
-pause/resume을 정확히 지원하려면 `MissionExecution`에 누적 진행 시간과 현재 active segment 기준 시각이 필요하다.
-
-```prisma
-model MissionExecution {
-  // ... existing fields
-  activeSegmentStartedAt DateTime?
-  pausedAt               DateTime?
-  elapsedSeconds         Int       @default(0)
-}
-```
-
-- 마이그레이션: `pnpm prisma:migrate:dev --name mission_execution_pause_resume`
-- 미션 총 시간은 기존 `Mission.durationMinutes * 60`으로 계산한다.
-
-### 타이머 복구 계산 규칙
-
-```text
-missionTotalSeconds = Mission.durationMinutes * 60
-
-if status == 'in_progress':
-  currentElapsedSeconds = elapsedSeconds + (now - activeSegmentStartedAt)
-
-if status == 'paused':
-  currentElapsedSeconds = elapsedSeconds
-
-remainingSeconds = missionTotalSeconds - currentElapsedSeconds
-```
-
-- 새 execution 생성 시:
-  - `startedAt = now`
-  - `activeSegmentStartedAt = now`
-  - `elapsedSeconds = 0`
-  - `pausedAt = null`
-- pause 시:
-  - `elapsedSeconds += now - activeSegmentStartedAt`
-  - `activeSegmentStartedAt = null`
-  - `pausedAt = now`
-- resume 시:
-  - `activeSegmentStartedAt = now`
-  - `pausedAt = null`
+- DB schema는 `MissionFeedback.parentEnergy Int // 0..10`으로 변경한다.
+- web UI는 Figma를 따라 **0..10 slider**로 입력받는다.
 
 ---
 
 ## 4. 레포별 작업 분해
 
-| 레포               | 작업                                                                                 | 의존성       |
-| ------------------ | ------------------------------------------------------------------------------------ | ------------ |
-| `yougabell-api`    | 추천 미션 상세 조회, 시작/복구/상태 전이 endpoint, OpenAPI export                    | 선행 (1순위) |
-| `yougabell-web`    | 미션 소개 화면, 타이머 화면, 홈/하단 탭 진입 연결, 타이머 상태 복원                  | api 완료 후  |
-| `yougabell-mobile` | 별도 네이티브 기능 없음. WebView 뒤로가기와 foreground 복귀 시 타이머 복원 동작 확인 | web 후속     |
-| `yougabell-admin`  | 영향 없음                                                                            | —            |
+| 레포               | 작업                                                                                | 의존성       |
+| ------------------ | ----------------------------------------------------------------------------------- | ------------ |
+| `yougabell-api`    | 종료 execution 효과 조회, 피드백 조회/저장 endpoint, 저장 규칙 확정, OpenAPI export | 선행 (1순위) |
+| `yougabell-web`    | 효과 화면, 피드백 화면, 완료 화면, 타이머 이후 전이, 피드백 폼 상태/검증            | api 완료 후  |
+| `yougabell-mobile` | 별도 네이티브 UI 없음. WebView 뒤로가기/foreground 복귀 확인                        | web 후속     |
+| `yougabell-admin`  | 기존 `Mission.effect` 입력/수정 UI가 효과 화면 문구 용도까지 커버하는지 확인 (후속) | 후속         |
 
 ### 4.1 yougabell-api 상세 스펙
 
-#### Prisma schema diff
+#### 기존 endpoint 유지
 
-신규 schema diff 없음.
+- `GET /missions/current`
+- `POST /mission-executions`
+- `GET /mission-executions/active`
+- `POST /mission-executions/:id/action`
 
-#### 엔드포인트 — `GET /missions/current`
+`POST /mission-executions/:id/action`의 `complete`, `early_complete` 처리 결과는 동일하다. 둘 다 종료 시점까지의 실제 수행 시간을 `actualDurationSeconds`에 저장한다.
 
-현재 선택 자녀 기준 "지금 보여줄 미션 소개 화면" 데이터를 반환한다.
+#### 엔드포인트 — `GET /mission-executions/:id/effect`
 
-**인증**: `Authorization: Bearer <Supabase JWT>` 필수. `JwtAuthGuard` + `OnboardingCompleteGuard` 적용.
+효과 화면 기본 데이터 조회 endpoint. 완료 화면도 같은 응답을 재사용한다.
 
-**Query**:
+**인증**: `Authorization: Bearer <Supabase JWT>` 필수.
+
+**Response 200**:
 
 ```typescript
-type GetCurrentMissionQuery = {
-  childId?: string; // 없으면 displayOrder 가장 앞 active child
+type GetMissionExecutionEffectResponse = {
+  execution: {
+    id: string;
+    status: 'completed' | 'early_completed';
+    completedAt: string;
+    actualDurationSeconds: number;
+    wasEarlyCompleted: boolean;
+  };
+  mission: {
+    id: string;
+    title: string;
+    effect: string; // Mission.effect
+    goal: string | null;
+    subThemeLabel: string | null;
+  };
 };
 ```
 
 **처리 로직**:
 
-1. 현재 사용자 active child 목록에서 선택 자녀를 확정한다.
-2. 자녀 월령과 roadmap category 매칭 규칙으로 오늘의 추천 미션 1건을 고른다.
-3. 같은 자녀 기준 `status in ('in_progress', 'paused')` 수행이 있으면 `activeExecution`에 포함한다.
-4. 미션 소개 화면에 필요한 제목, 설명, 시간, 카테고리, 출처를 반환한다.
-
-**Response 200**:
-
-```typescript
-type GetCurrentMissionResponse = {
-  selectedChild: {
-    id: string;
-    name: string;
-    ageLabel: string;
-  };
-  mission: {
-    id: string;
-    subThemeLabel: string | null;
-    title: string;
-    description: string;
-    durationMinutes: number;
-    durationLabel: string; // "10분"
-    categoryLabel: string; // "언어발달"
-    sourceLabel: string; // "CDC"
-  };
-  activeExecution: null | {
-    id: string;
-    status: "in_progress" | "paused";
-    startedAt: string;
-    activeSegmentStartedAt: string | null;
-    pausedAt: string | null;
-    durationMinutes: number;
-    elapsedSeconds: number;
-    remainingSeconds: number;
-  };
-};
-```
+1. execution이 현재 사용자 소유인지 검증한다.
+2. status가 `completed` 또는 `early_completed`인지 검증한다.
+3. execution에 연결된 미션을 조회한다.
+4. 효과 화면과 완료 화면이 바로 렌더링 가능한 shape로 응답한다.
 
 **에러 응답**:
 
-| 상태 | code                  | 의미                                    |
-| ---- | --------------------- | --------------------------------------- |
-| 400  | `VALIDATION_ERROR`    | `childId` 형식 오류                     |
-| 401  | `UNAUTHORIZED`        | JWT 없음/만료                           |
-| 403  | `ONBOARDING_REQUIRED` | 온보딩 미완료                           |
-| 404  | `CHILD_NOT_FOUND`     | 자녀 없음 또는 사용자 소유 자녀가 아님  |
-| 409  | `NO_CHILD_PROFILE`    | 온보딩 완료 상태이나 자녀 데이터가 없음 |
-| 500  | `INTERNAL_ERROR`      | 추천 미션 조회 실패                     |
+| 상태 | code                             | 의미                            |
+| ---- | -------------------------------- | ------------------------------- |
+| 400  | `VALIDATION_ERROR`               | id 형식 오류                    |
+| 401  | `UNAUTHORIZED`                   | JWT 없음/만료                   |
+| 404  | `MISSION_EXECUTION_NOT_FOUND`    | 본인 execution이 아님 또는 없음 |
+| 409  | `MISSION_EXECUTION_NOT_FINISHED` | 아직 타이머가 종료되지 않음     |
 
-#### 엔드포인트 — `POST /mission-executions`
+#### 엔드포인트 — `PUT /mission-executions/:id/feedback`
 
-미션 시작하기를 누를 때 수행 인스턴스를 생성하거나, 이미 진행 중인 수행이 있으면 그것을 재사용한다.
+피드백 저장 endpoint. 동일 execution에 대해 upsert로 동작한다.
 
 **Request**:
 
 ```typescript
-type StartMissionExecutionDto = {
-  childId: string;
-  missionId: string;
+type UpsertMissionFeedbackDto = {
+  childReaction: number; // 1..5
+  parentEnergy: number; // 0..10
+  missionSatisfaction: number; // 1..5
+  note?: string | null; // 원문 textarea
 };
 ```
 
 **검증 룰**:
 
-- `childId`는 현재 사용자 소유 active child여야 한다.
-- `missionId`는 노출 가능한 미션이어야 한다.
-- 같은 `childId` 기준 `status in ('in_progress', 'paused')` 수행이 이미 있으면 새 row를 만들지 않는다.
+- execution은 현재 사용자 소유여야 한다.
+- execution status는 `completed` 또는 `early_completed`여야 한다.
+- `childReaction`, `missionSatisfaction`는 1..5
+- `parentEnergy`는 0..10
+- `note`는 최대 500자
 
 **처리 로직**:
 
-1. active child/mission 유효성 검사
-2. 기존 진행 중 수행 조회
-3. 있으면 기존 execution 반환
-4. 없으면 `startedAt=now`, `status='in_progress'`, `wasEarlyCompleted=false`로 생성
-5. `activeSegmentStartedAt=now`, `elapsedSeconds=0`, `pausedAt=null`로 초기화한다.
-6. duration은 `Mission.durationMinutes * 60`을 timer 기준으로 사용한다.
+1. execution 소유권/종료 상태 검증
+2. `note`를 정규화해 `keywords[]` 산출
+3. `MissionFeedback` upsert
+4. 기존 `MissionFeedbackKeyword`를 교체 저장
+5. 저장된 값을 응답
 
 **Response 200**:
 
 ```typescript
-type StartMissionExecutionResponse = {
-  execution: {
+type UpsertMissionFeedbackResponse = {
+  feedback: {
     id: string;
-    missionId: string;
-    childId: string;
-    status: "in_progress" | "paused";
-    startedAt: string;
-    activeSegmentStartedAt: string | null;
-    pausedAt: string | null;
-    durationMinutes: number;
-    elapsedSeconds: number;
-    remainingSeconds: number;
+    executionId: string;
+    childReaction: number;
+    parentEnergy: number; // 0..10
+    missionSatisfaction: number;
+    note: string | null;
+    keywords: string[];
+    createdAt: string;
   };
 };
 ```
-
-#### 엔드포인트 — `GET /mission-executions/active`
-
-진행 중 또는 일시정지된 수행이 있으면 복구용 snapshot을 반환한다.
-
-```typescript
-type GetActiveMissionExecutionQuery = {
-  childId?: string;
-};
-```
-
-**Response 200**:
-
-```typescript
-type GetActiveMissionExecutionResponse = {
-  execution: null | {
-    id: string;
-    missionId: string;
-    childId: string;
-    status: "in_progress" | "paused";
-    startedAt: string;
-    activeSegmentStartedAt: string | null;
-    pausedAt: string | null;
-    durationMinutes: number;
-    elapsedSeconds: number;
-    remainingSeconds: number;
-  };
-};
-```
-
-#### 엔드포인트 — `POST /mission-executions/:id/action`
-
-타이머 화면의 상태 전이 endpoint.
-
-```typescript
-type MissionExecutionActionDto = {
-  action: "pause" | "resume" | "complete" | "early_complete";
-};
-```
-
-**처리 로직**:
-
-- `pause`: `elapsedSeconds += now - activeSegmentStartedAt`, `status='paused'`, `activeSegmentStartedAt=null`, `pausedAt=now`
-- `resume`: `status='in_progress'`, `activeSegmentStartedAt=now`, `pausedAt=null`
-- `complete`: `status='completed'`, `completedAt=now`, `actualDurationSeconds=elapsedSeconds + (now - activeSegmentStartedAt)`
-- `early_complete`: `status='early_completed'`, `completedAt=now`, `actualDurationSeconds=elapsedSeconds + (status == 'in_progress' ? now - activeSegmentStartedAt : 0)`, `wasEarlyCompleted=true`
-
-**비고**:
-
-- 이번 범위의 web 구현은 `pause`/`resume`과 timer 종료 시 `complete` 호출까지 포함한다.
-- `early_complete` 이후 도착하는 효과 화면은 후속 범위다.
 
 #### OpenAPI
 
@@ -307,12 +201,12 @@ type MissionExecutionActionDto = {
 
 ```text
 app/
-  (main)/
-    page.tsx                  // 홈
-    weekly-report/page.tsx
   mission/
     page.tsx                  // 미션 소개
     timer/page.tsx            // 타이머
+    effect/page.tsx           // 미션 효과
+    feedback/page.tsx         // 미션 피드백
+    done/page.tsx             // 피드백 작성 완료
 ```
 
 #### 화면 전이
@@ -320,135 +214,95 @@ app/
 - 홈 "미션 시작하기" -> `/mission`
 - 하단 탭 "10분 놀이" -> `/mission`
 - 소개 화면 "미션 시작하기" -> `POST /mission-executions` 성공 후 `/mission/timer?executionId=...`
-- 소개 화면에서 `activeExecution`이 있으면 CTA를 `이어서 하기`로 보여주고, 누르면 해당 execution의 타이머 화면으로 이동
-- 타이머 종료 또는 조기완료 -> 후속 범위의 `/mission/effect?...`로 이동 예정
+- 타이머 종료 또는 조기완료 -> `/mission/effect?executionId=...`
+- 효과 화면 "다음" -> `/mission/feedback?executionId=...`
+- 피드백 저장 성공 -> `/mission/done?executionId=...`
+- 완료 화면 "홈으로 가기" -> `/`
+- 완료 화면 우측 calendar 아이콘 -> `/weekly-report`
 
 #### 상태 스키마
 
 ```typescript
-type MissionTimerSnapshot = {
-  executionId: string;
-  missionId: string;
-  childId: string;
-  status: "in_progress" | "paused";
-  durationMinutes: number;
-  elapsedSeconds: number;
-  remainingSeconds: number;
-  startedAt: string;
-  activeSegmentStartedAt: string | null;
-  pausedAt: string | null;
-  serverNow: string;
-};
-```
-
-- source of truth는 서버 응답이다.
-- 클라이언트는 매 초 decrement UI를 하되, 화면 진입/복귀 시 서버 snapshot으로 다시 동기화한다.
-- localStorage 영속 저장은 하지 않는다. 서버에 진행 상태가 있으므로 복원은 API 재조회로 처리한다.
-- `startedAt`은 최초 시작 시각 기록용이고, 실제 running 타이머 복원 계산은 `elapsedSeconds + (serverNow - activeSegmentStartedAt)`로 한다.
-
-#### 훅 인터페이스
-
-```typescript
-function useCurrentMission(childId?: string): {
-  data: GetCurrentMissionResponse | undefined;
-  isLoading: boolean;
-  error: ApiError | null;
-  refetch: () => Promise<void>;
-};
-
-function useMissionTimer(executionId: string): {
-  snapshot: MissionTimerSnapshot | null;
-  isLoading: boolean;
-  pause: () => Promise<void>;
-  resume: () => Promise<void>;
-  complete: () => Promise<void>;
-  earlyComplete: () => Promise<void>;
-};
-```
-
-#### 컴포넌트 인터페이스
-
-```typescript
-type MissionIntroScreenProps = {
-  childLabel: string;
-  mission: {
-    subThemeLabel: string | null;
-    title: string;
-    description: string;
-    durationLabel: string;
-    categoryLabel: string;
-    sourceLabel: string;
+type MissionExecutionEffect = {
+  execution: {
+    id: string;
+    status: 'completed' | 'early_completed';
+    actualDurationSeconds: number;
+    completedAt: string;
+    wasEarlyCompleted: boolean;
   };
-  hasActiveExecution: boolean;
-  onBack: () => void;
-  onStart: () => void;
+  mission: {
+    id: string;
+    title: string;
+    effect: string;
+    goal: string | null;
+    subThemeLabel: string | null;
+  };
 };
 
-type MissionTimerScreenProps = {
-  childLabel: string;
-  remainingSeconds: number;
-  totalSeconds: number;
-  status: "in_progress" | "paused";
-  onBack: () => void;
-  onPause: () => void;
-  onResume: () => void;
-  onEarlyComplete: () => void;
+type MissionFeedbackDraft = {
+  childReaction: number | null;
+  parentEnergy: number | null; // 0..10
+  missionSatisfaction: number | null;
+  note: string;
 };
 ```
 
 #### UI 상태
 
-- 소개 화면
-  - loading: skeleton
-  - success: Figma `2395:10007`
+- 효과 화면
+  - loading: centered skeleton
+  - success: Figma `2395:10109`
   - API 실패: 전체 에러 화면
-  - `activeExecution.status='paused'`면 CTA 문구를 `이어서 하기`로 변경
-  - `activeExecution.status='in_progress'`면 소개 화면을 건너뛰고 바로 타이머 화면으로 보낸다
-- 타이머 화면
-  - loading: centered spinner/skeleton
-  - in_progress: 보라색 progress ring + `멈추기`
-  - paused: progress 유지 + primary CTA `다시 시작하기`, secondary CTA `조기완료`
-  - API 실패: 전체 에러 화면
+- 피드백 화면
+  - success: Figma `2395:9759`
+  - `executionId`와 전역 child 정보로 렌더
+  - 저장 중: CTA disabled
+  - validation error: CTA 위 인라인 에러
+  - draft 복구: `sessionStorage` 기반 임시 저장값 복원
+- 완료 화면
+  - success: Figma `2395:10071`
+  - `GET /mission-executions/:id/effect` 재호출 후 렌더
 
-#### middleware 분기
+#### 폼 규칙
 
-- 기존 홈/리포트와 동일하게 로그인 + 온보딩 완료 필요
-- 미션 화면도 온보딩 미완료 시 온보딩으로 리디렉션
+- `childReaction`: 필수, 1..5 중 하나
+- `parentEnergy`: 필수, 0..10 slider
+- `missionSatisfaction`: 필수, 1..5 중 하나
+- `note`: 선택
+
+#### 입력 해석
+
+- textarea는 자유 입력 1개 필드로 유지하고, API 필드명은 `note`를 사용한다.
+- placeholder는 Figma 문구를 따른다.
+- 사용자는 쉼표/띄어쓰기/줄바꿈으로 단어를 적을 수 있다.
+- web은 원문만 보내고, keyword 파싱/정규화는 서버가 담당한다.
+- 피드백 입력 draft는 `sessionStorage`에 `mission-feedback-draft:<executionId>` key로 임시 저장하고, 제출 성공 시 clear한다.
 
 ### 4.3 yougabell-mobile
 
 - 별도 네이티브 UI 구현 없음
 - 확인 항목:
-  - Android hardware back 시 `/mission/timer`에서 오동작 없이 이전 화면으로 이동하는지
-  - 앱 background -> foreground 복귀 시 web이 `GET /mission-executions/active`로 snapshot 복원하는지
-  - WebView safe area에서 상단 sub LNB와 하단 home indicator spacing이 깨지지 않는지
+  - 타이머 종료 후 effect -> feedback -> done 라우팅이 WebView에서 자연스러운지
+  - Android hardware back 시 feedback 화면에서 직전 화면으로 이동하는지
+  - foreground 복귀 시 feedback 입력값이 유지되는지
 
 ---
 
 ## 5. UI/디자인 참조
 
-- Figma 노드:
-  - `2395:10007` — 미션 소개 화면
-  - `2395:9927` — 미션 타이머 화면
-- 디자인 토큰 변경 필요 여부: 없음
+### 가져올 것
 
-### 가져올 것 / 무시할 것
+- 효과 화면의 중앙 일러스트 + headline + effect card
+- 피드백 화면의 5단계 반응 선택 row 2개
+- 부모 에너지 0~10 slider
+- 완료 화면의 calendar 아이콘 + 홈 CTA
 
-| 구분        | 내용                                                                              |
-| ----------- | --------------------------------------------------------------------------------- |
-| 가져올 것   | 상단 sub LNB 구조, 중앙 정렬된 미션 정보, 하단 CTA, 타이머 원형 진행 UI           |
-| 가져올 것   | 미션 정보 카드의 3개 메타 항목(시간, 카테고리, 출처)                              |
-| 가져올 것   | 타이머 화면의 큰 숫자 시간 표시, `멈추기`, `조기완료` 계층 구조                   |
-| 무시할 것   | iOS status bar/Home indicator asset의 절대 좌표                                   |
-| 무시할 것   | Figma 원본 이미지 asset URL 자체                                                  |
-| 재해석할 것 | 원형 progress ring의 animation 구현 방식                                          |
-| 재해석할 것 | 소개 화면의 캐릭터 일러스트 asset. 초기 구현은 mission-illustration.svg 참조 허용 |
+### 재해석할 것
 
-### 화면 구조 해석
-
-- 미션 소개 화면은 **리스트/피드형 미션 탭이 아니라 단일 미션 상세 시작 화면**이다.
-- 타이머 화면은 **전체 앱 shell 안의 카드가 아니라 풀스크린 task 화면**이다.
-- 두 화면 모두 하단 탭을 숨긴다.
+- slider는 Figma 자산을 그대로 이미지로 쓰지 않고 입력 가능한 웹 슬라이더로 재구성한다.
+- 5단계 반응 아이콘은 기존 `public/icons/figma/mission-feedback` 자산을 재사용한다.
+- 효과/완료 화면 배경의 은은한 purple glow는 CSS 배경으로 근사 구현한다.
 
 ---
 
@@ -456,90 +310,62 @@ type MissionTimerScreenProps = {
 
 ### 저장 전략
 
-- 서버 DB: `MissionExecution` 상태를 서버에 저장한다.
-- 단계별 저장: 시작/일시정지/재개/완료 시점마다 상태를 서버에 반영한다.
-- 영속성 등급: 앱 강제 종료 후에도 수행 복구가 가능해야 한다.
-- 멀티 디바이스: 같은 계정으로 다른 디바이스에 들어가도 active execution 1건만 복원 가능해야 한다.
+- `MissionExecution` 종료 후에만 피드백 작성 가능
+- 피드백은 upsert 가능 (같은 execution 수정 허용)
+- 슬라이더/textarea 입력 중 페이지 이동 전까지는 클라이언트 state 유지
+- 저장 전 재진입 복구는 `sessionStorage` draft 저장으로 처리한다
+- 피드백 제출 성공 시 draft를 clear한다
 
 ### 그 외
 
-- 성능:
-  - `GET /missions/current` 응답 300ms 이내 목표
-  - 타이머 화면 재진입 복구 응답 300ms 이내 목표
 - 보안:
-  - execution 조회/전이는 본인 소유 자녀·미션만 가능
-  - 다른 사용자의 `executionId` 직접 호출은 404 또는 403 차단
+  - effect 조회와 feedback 저장 모두 본인 소유 execution만 접근 가능
 - 접근성:
-  - 타이머 숫자는 스크린리더에서 남은 시간을 읽을 수 있어야 함
-  - CTA 버튼은 `button` semantics 유지
+  - 5단계 반응 버튼은 `aria-pressed` 상태를 가져야 함
+  - 에너지 slider는 현재 점수를 스크린리더로 읽을 수 있어야 함
 - 분석 이벤트:
-  - `mission_intro_view`
-  - `mission_intro_start_click`
-  - `mission_timer_view`
-  - `mission_timer_pause_click`
-  - `mission_timer_resume_click`
-  - `mission_timer_early_complete_click`
-  - `mission_timer_complete`
+  - `mission_effect_view`
+  - `mission_effect_next_click`
+  - `mission_feedback_view`
+  - `mission_feedback_child_reaction_select`
+  - `mission_feedback_parent_energy_change`
+  - `mission_feedback_satisfaction_select`
+  - `mission_feedback_submit`
+  - `mission_feedback_done_view`
 
 ---
 
-## 7. 리스크·미해결 질문
+## 7. 결정 사항
 
-- [x] ~~`GET /missions/current`가 항상 "오늘의 추천 미션 1건"만 보여주면 충분한가, 아니면 리스트/다음 추천 전환이 필요한가~~ → **현재 범위에서는 추천 미션 1건만 보여주면 충분하다. 리스트/다음 추천 전환은 후속 범위로 둔다. (2026-05-18)**
-- [x] ~~미션 소개 화면의 "출처"는 현재 실제 데이터로 채울 수 있는가, 아니면 초기에는 하드코딩/seed 기반인가~~ → **출처는 실제 MissionSource 데이터로 채운다. (2026-05-18)**
-- [x] ~~진행 중 미션이 있을 때 홈/하단 탭에서 `/mission` 진입 시 소개 화면을 보여줄지, 바로 타이머로 보낼지~~ → **`in_progress` 상태면 소개 화면을 건너뛰고 바로 타이머로 보낸다. `paused` 상태만 소개 화면에서 `이어서 하기`로 노출한다. (2026-05-18)**
-- [x] ~~background 상태에서 브라우저 타이머 drift가 큰 경우 보정 주기를 얼마나 둘지~~ → **상시 polling은 두지 않는다. pause/resume/complete/early_complete 같은 상태 전이 시점과 background 복귀·재진입 시점에만 서버 snapshot으로 보정한다. (2026-05-18)**
+- [x] 효과 화면 본문은 기존 `Mission.effect`를 사용한다
+- [x] 부모 에너지 상태 UI와 저장값 모두 0..10을 사용한다
+- [x] keyword 입력은 자유 textarea 1개를 받고, 서버에서 키워드로 정규화한다
+- [x] 피드백 작성 완료 화면 우측 아이콘은 주간 리포트 진입으로 사용한다
+- [x] 동일 execution 피드백은 upsert 허용한다
+- [x] 저장 전 피드백 재진입 복구는 서버 GET이 아니라 클라이언트 draft 저장으로 처리한다
 
 ---
 
 ## 8. Phase별 작업 todo
 
-### Phase 0 — 기획 확정 (선행)
+### Phase 1 — umbrella 문서/스키마 확정
 
-- [x] 진행 중 미션 재진입 정책 확정 (`in_progress`는 바로 타이머, `paused`는 소개 화면에서 이어서 하기)
-- [x] 출처/sourceLabel 데이터 채우는 방식 확정 (실제 데이터 사용)
-- [x] 타이머 drift 보정 정책 확정 (상태 전이/재진입 시점만 서버 snapshot 재동기화)
+- [x] 미션 문서를 v02로 확장
+- [x] `docs/schema/05-mission.md`를 실제 Prisma schema 기준으로 갱신
 
-### Phase 1 — `yougabell-api` (선행, 다른 레포 시작 차단)
+### Phase 2 — `yougabell-api`
 
-- [ ] `GET /missions/current`
-- [ ] `POST /mission-executions`
-- [ ] `GET /mission-executions/active`
-- [ ] `POST /mission-executions/:id/action`
+- [ ] `MissionFeedback.parentEnergy` 0..10 검증/저장 반영
+- [ ] `GET /mission-executions/:id/effect`
+- [ ] `PUT /mission-executions/:id/feedback`
+- [ ] keyword 파싱/정규화 유틸
 - [ ] OpenAPI export 갱신
 
-### Phase 2 — `yougabell-web` (api 완료 후)
+### Phase 3 — `yougabell-web`
 
-- [ ] `/mission` 라우트 추가
-- [ ] `/mission/timer` 라우트 추가
-- [ ] 홈 CTA `/mission` 연결
-- [ ] bottom nav "10분 놀이" `/mission` 연결
-- [ ] 소개 화면 구현
-- [ ] 타이머 화면 구현
-- [ ] active execution 복구 처리
-
-### Phase 3 — `yougabell-mobile` (해당 시)
-
-- [ ] WebView foreground 복귀 시 동작 검증
-- [ ] Android back 검증
-
-### Phase 4 — `yougabell-admin` (해당 시)
-
-- [ ] —
-
-### Phase 5 — 통합 검증
-
-- [ ] 홈 -> 미션 소개 -> 타이머 진입
-- [ ] 앱 이탈 후 타이머 복구
-- [ ] 멈추기/다시 시작하기
-- [ ] 타이머 만료 시 complete 전이
-- [ ] 조기완료 시 early_complete 전이
-
----
-
-## 9. 구현 결과 (구현 완료 후 채움)
-
-- 관련 PR: —
-- 마이그레이션 이름: 없음
-- 스펙 변경점: —
-- 후속 과제: 미션 효과 화면, 수행 후 피드백 화면
+- [ ] `/mission/effect`
+- [ ] `/mission/feedback`
+- [ ] `/mission/done`
+- [ ] 타이머 종료 후 effect 화면 전이
+- [ ] feedback form 구현
+- [ ] 완료 화면 구현

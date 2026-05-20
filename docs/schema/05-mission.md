@@ -16,14 +16,17 @@
 | `shortTitle`              | `string`                    |  \*  | 상세 페이지 헤더, 예: "10분 아이컨텍"                                    | `851:3340`                       |
 | `description`             | `string`                    |  \*  | 상세 본문                                                                | `851:3340`                       |
 | `durationMinutes`         | `number`                    |  \*  | 예: 10, 7. 타이머 계산의 기준 분 단위                                    | `851:3340`, `851:4603` "7분"     |
-| `effect`                  | `string`                    |  \*  | 카피, 예: "정서적 안정감"                                                | `851:3340`                       |
+| `effect`                  | `string`                    |  \*  | 미션 효과 설명. 주간 리포트/효과 화면 본문에 재사용된다                  | `851:3340`, `2395:10109`         |
 | `subThemeLabel`           | `string`                    |  ?   | UI 상단 칩에 노출되는 보조 라벨. 예: "아이와 가까워지기" (카테고리 아님) | `851:3410`                       |
+| `goal`                    | `string`                    |  ?   | 나잇대별 마일스톤 목표. CSV "아이 나잇대별 마일스톤 목표" 컬럼 기반      | 운영 CSV                         |
+| `parentingStyleId`        | `string`                    |  ?   | 양육 스타일 FK 예정. 현재는 nullable 식별자만 보관                       | future                           |
 | `tags`                    | `string[]`                  |  ?   | 검색·필터용                                                              | TBD                              |
 | `recommendedAgeMonthsMin` | `number`                    |  ?   | 적정 월령 하한 (마일스톤 ageMonths와 매칭)                               | TBD                              |
 | `recommendedAgeMonthsMax` | `number`                    |  ?   | 적정 월령 상한                                                           | TBD                              |
 | `thumbnailUrl`            | `string`                    |  ?   | 카드·리스트에 노출되는 정적 섬네일 이미지 URL                            | TBD (콘텐츠 운영 요건)           |
 | `videoUrl`                | `string`                    |  ?   | 가이드 영상이 있는 미션의 영상 URL. 카드 섬네일은 `thumbnailUrl` 사용    | TBD (콘텐츠 운영 요건)           |
 | `createdAt`               | `DateTime`                  |  \*  | —                                                                        | —                                |
+| `updatedAt`               | `DateTime`                  |  \*  | 마지막 수정 시각                                                         | —                                |
 
 > **카테고리 정책 변경**
 > 이전 `category: string` ("아이와 가까워지기" 등 자유 텍스트)을 폐기하고 `categoryId: FK → MilestoneCategory.id`로 변경. 마일스톤·미션이 같은 마스터를 참조해야 추천 매칭이 가능. 기존 "아이와 가까워지기" 같은 라벨은 미션의 sub-테마로서 `subThemeLabel`(옵셔널)에 보존.
@@ -31,6 +34,8 @@
 ### 관계 (Relations)
 
 - N:1 ← `category: MilestoneCategory` _(via `categoryId`)_
+- 1:N → `tags: MissionTag[]`
+- 1:N → `sources: MissionSource[]`
 - 1:N → `executions: MissionExecution[]`
 
 ### 추천 로직 (categoryId 매칭 + 월령 범위)
@@ -49,6 +54,32 @@ flowchart LR
 
 - 다자녀: 같은 미션이 자녀별로 다른 진척도를 가질 수 있다 → `MissionExecution`이 `childId`를 가짐
 - 추천 가중 신호 (TBD): `User.parentingStyleId` (future), `MentalBatteryCheck.level` (저배터리면 짧은 미션 우선)
+
+## MissionSource (미션 출처)
+
+| 필드        | 타입              | 필수 | 설명                                       |
+| ----------- | ----------------- | :--: | ------------------------------------------ |
+| `id`        | `string`          |  \*  | PK                                         |
+| `missionId` | `FK → Mission.id` |  \*  | —                                          |
+| `citation`  | `string`          |  \*  | 출처 표기. 예: `CDC`, `Harvard`, `UNICEF`  |
+| `url`       | `string`          |  ?   | 원문 링크                                  |
+| `note`      | `string`          |  ?   | 운영 메모                                  |
+
+### 관계 (Relations)
+
+- N:1 ← `mission: Mission` _(via `missionId`)_
+
+## MissionTag (미션 태그)
+
+| 필드        | 타입              | 필수 | 설명           |
+| ----------- | ----------------- | :--: | -------------- |
+| `id`        | `string`          |  \*  | PK             |
+| `missionId` | `FK → Mission.id` |  \*  | —              |
+| `tag`       | `string`          |  \*  | 검색/필터 태그 |
+
+### 관계 (Relations)
+
+- N:1 ← `mission: Mission` _(via `missionId`)_
 
 ---
 
@@ -70,6 +101,8 @@ flowchart LR
 | `completedAt`            | `DateTime`                                                               |  ?   | 종료 시각                                                                          | —                                                                       |
 | `actualDurationSeconds`  | `number`                                                                 |  ?   | 최종 실제 수행 시간. `completed`면 보통 전체 시간, `early_completed`면 중간 종료값 | 타이머 `851:5197` "09:44"                                               |
 | `wasEarlyCompleted`      | `boolean`                                                                |  \*  | 디폴트 false                                                                       | `851:5197`                                                              |
+| `createdAt`              | `DateTime`                                                               |  \*  | row 생성 시각                                                                      | —                                                                       |
+| `updatedAt`              | `DateTime`                                                               |  \*  | 마지막 수정 시각                                                                   | —                                                                       |
 
 ### 상태 전이
 
@@ -142,23 +175,36 @@ Mission.durationMinutes * 60 - currentElapsedSeconds
 | `id`                  | `string`                               |  \*  | PK                                                    | —          |
 | `executionId`         | `FK → MissionExecution.id` (`@unique`) |  \*  | —                                                     | —          |
 | `childReaction`       | `enum(1..5)`                           |  \*  | 매우 부정 / 부정 / 중간 / 조금 긍정 / 매우 긍정       | `851:3647` |
-| `parentEnergy`        | `enum(1..5)`                           |  \*  | 매우 지침 / 조금 지침 / 보통 / 조금 충전 / 매우 충전  | `851:3647` |
+| `parentEnergy`        | `number (0..10)`                       |  \*  | 미션 직후 부모 에너지 상태. Figma slider 값을 그대로 저장한다            | `2395:9759` |
 | `missionSatisfaction` | `enum(1..5)`                           |  \*  | 매우 불만족 ~ 매우 만족                               | `851:3647` |
-| `childKeywords`       | `string[]`                             |  ?   | 아이가 가장 많이 한 단어. 예: ["공룡", "엄마 사랑해"] | `851:3647` |
-| `note`                | `string`                               |  ?   | 자유 텍스트 (선택)                                    | `851:3566` |
+| `note`                | `string`                               |  ?   | textarea 원문 보존 (선택)                              | `2395:9759` |
 | `createdAt`           | `DateTime`                             |  \*  | —                                                     | —          |
 
 ### 관계 (Relations)
 
 - 1:1 ← `execution: MissionExecution` _(via `executionId`)_
+- 1:N → `keywords: MissionFeedbackKeyword[]`
 
 ### 활용
 
-- `childKeywords` → 주간 리포트의 "관심 키워드 Top 3" 집계 (`851:6618`)
+- `keywords.keyword` → 주간 리포트의 "관심 키워드 Top 3" 집계 (`851:6618`)
 - `childReaction` → "아이 반응 긍정률" 집계
 - `parentEnergy` → "사용자의 내면 상태" 집계 + 다음 미션 난이도 조절
 
+## MissionFeedbackKeyword (피드백 키워드)
+
+| 필드         | 타입                      | 필수 | 설명                            |
+| ------------ | ------------------------- | :--: | ------------------------------- |
+| `id`         | `string`                  |  \*  | PK                              |
+| `feedbackId` | `FK → MissionFeedback.id` |  \*  | —                               |
+| `rank`       | `number`                  |  \*  | execution 내 노출/집계 우선순위 |
+| `keyword`    | `string`                  |  \*  | 정규화된 키워드                 |
+
+### 관계 (Relations)
+
+- N:1 ← `feedback: MissionFeedback` _(via `feedbackId`)_
+
 **TBD**
 
-- v001의 칭찬/리액션 화면(`851:3811`)이 v003에서도 노출되는지 (수행 직후 칭찬 → 피드백 폼 순서)
-- 키워드 자동 추천(태그 클라우드)을 줄지, 자유 입력만일지
+- 효과 화면은 별도 단계로 유지 (`2395:10109`)
+- 피드백 작성 완료 화면은 홈 복귀 + 주간 리포트 shortcut(`2395:10071`)
