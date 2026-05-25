@@ -391,39 +391,41 @@ const result = await generateObject({
 ### Phase 0 — 기획 확정 (선행) ✅ 완료 (2026-05-25)
 
 - [x] 9항목 결정 (§7 상단)
-- [ ] 본 문서 PR 머지 (진행 중)
+- [x] 본 문서 PR 머지 ([`umbrella#9`](https://github.com/four-lovely-fairies/yougabell/pull/9))
 
-### Phase 1 — `yougabell-api` 챗 도메인 + UI 영속화 (AI 미연결)
+### Phase 1 — `yougabell-api` 챗 도메인 + UI 영속화 (AI 미연결) ✅ 완료 (2026-05-25)
 
-> "AI 챗봇 페이지 컴포넌트만 먼저 만들고" 단계. 현재 chat 페이지는 demo simulation(1.5초). 본 단계에서 DB 영속화 + API endpoint만 추가, LLM 호출 X.
+> "AI 챗봇 페이지 컴포넌트만 먼저 만들고" 단계. 기존 chat 페이지의 demo simulation(1.5초)을 제거하고 DB 영속화 + API endpoint로 교체. LLM 호출은 다음 단계.
 
-- [ ] Prisma schema: ChatSession + ChatMessage + MessageCard + SourceLink 모델 추가
-- [ ] 마이그레이션: `add_chat_models`
-- [ ] `chat/` 모듈 (controller + service + DTO)
-- [ ] `GET /me/chat` — 세션 + 최근 메시지 (없으면 빈 응답)
-- [ ] `POST /me/chat/messages` (1차 — SSE 아님, 일반 POST) — 사용자 메시지 저장 + **고정 mock 응답** 저장 (Phase 2에서 LLM 교체)
-- [ ] `DELETE /me/chat`
-- [ ] OpenAPI export 갱신
-- [ ] **web**: `/chat` 페이지에서 demo simulation 제거 → 새 endpoint 호출 + 응답 수신·표시 + 마운트 시 hydrate
+- [x] Prisma schema: ChatSession + ChatMessage + MessageCard + SourceLink 모델 (이미 schema에 존재 — 신규 작성 불필요)
+- [x] 마이그레이션: 불필요 (모델 이미 존재, db push 모드)
+- [x] `chat/` 모듈 (controller + service + DTO) — [`api#15`](https://github.com/four-lovely-fairies/yougabell-api/pull/15)
+- [x] `GET /me/chat` — 단일 영속 세션 + 최근 50개 메시지 (없으면 빈 응답)
+- [x] `POST /me/chat/messages` — 사용자 메시지 저장 + 고정 mock assistant 응답 저장 (Phase 2에서 SSE로 교체)
+- [x] `DELETE /me/chat`
+- [x] OpenAPI export 갱신 (33 paths)
+- [x] **web**: `/chat` 페이지에서 demo simulation 제거 → `loadChat()` + `sendChatMessage()` 연결 + 마운트 시 hydrate — [`web#30`](https://github.com/four-lovely-fairies/yougabell-web/pull/30)
 
-### Phase 2 — Gemini 통합 (챗 실제 AI 응답)
+### Phase 2 — Gemini 통합 (챗 실제 AI 응답) ✅ 완료 (2026-05-25)
 
-- [ ] `pnpm add ai @ai-sdk/google`
-- [ ] `ai/` 모듈: `AiConfigService`, `ContextBuilderService`, prompts
-- [ ] 환경 변수 등록 (Render 대시보드 + `.env.example`)
-- [ ] `POST /me/chat/messages` SSE 전환 — `streamText` + token stream + 완료 시 structured cards/sources(`generateObject`) 동시 호출
-- [ ] **web**: SSE 수신 클라이언트 (`EventSource` or `fetch + ReadableStream`)로 토큰 typing + 완료 시 cards 우르르
-- [ ] 분석 이벤트 6종 (`chat_*`) 발행
-- [ ] 토큰 사용량 컬럼 채우기 (`ChatMessage.tokensUsed`)
+- [x] `pnpm add ai @ai-sdk/google zod`
+- [x] `ai/` 모듈 (`@Global`): `AiConfigService`, `ContextBuilderService`, `prompts/chat-system.ts`, `prompts/chat-cards.ts`
+- [x] 환경 변수 등록 (Render 대시보드 + `.env.example`: `GOOGLE_GENERATIVE_AI_API_KEY`/`AI_CHAT_MODEL`/`AI_REPORT_MODEL`)
+- [x] `POST /me/chat/messages/stream` 신규 SSE 엔드포인트 — `streamText` 본문 토큰 + 완료 시 `generateText({ experimental_output: Output.object({ schema }) })`로 cards/sources 구조화 추출 (AI SDK v6 — `generateObject` 폐기 대응) — [`api#16`](https://github.com/four-lovely-fairies/yougabell-api/pull/16)
+- [x] **web**: `streamChatMessage` (fetch + ReadableStream으로 SSE 파싱) + `/chat` 페이지 streaming bubble morph → done 시 cards 우르르 — [`web#31`](https://github.com/four-lovely-fairies/yougabell-web/pull/31)
+- [ ] 분석 이벤트 6종 (`chat_*`) 발행 — 후속 작업으로 분리
+- [ ] 토큰 사용량 컬럼(`ChatMessage.tokensUsed`) 채우기 — 후속 작업
+- [x] 키 미설정 시 mock 응답을 SSE 토큰처럼 흘려보내는 fallback (Phase 1 동작 유지)
 
-### Phase 3 — 주간 리포트 AI 필드 3개
+### Phase 3 — 주간 리포트 AI 필드 3개 ✅ 완료 (2026-05-25)
 
-- [ ] Prisma schema: `WeeklyReport.headlineBody` LLM 채움 (기존 컬럼)·`WeeklyReportBestMoment.body` LLM 채움·`aiActionSuggestion` LLM 채움
-- [ ] `WeeklyReport.aiGeneratedAt`/`aiPromptTokens`/`aiCompletionTokens` 신규 컬럼
-- [ ] 마이그레이션: `add_weekly_report_ai_fields`
-- [ ] `WeeklyReportsService.generateForWeek()` — LLM 호출 통합 (`generateObject` + zod schema)
-- [ ] 실패 시 fallback 텍스트 + `aiGeneratedAt=null`
-- [ ] 분석 이벤트 2종 (`weekly_report_ai_*`)
+- [x] `WeeklyReport.aiGeneratedAt`/`aiPromptTokens`/`aiCompletionTokens` 신규 컬럼 추가
+- [x] `headlineBody`·`WeeklyReportBestMoment.body`·`aiActionSuggestion` LLM 채움 (기존 컬럼은 유지)
+- [x] 마이그레이션: 불필요 (db push 모드 — 머지 후 수동 1회 `prisma db push` 필요)
+- [x] `WeeklyReportsService.generateForWeek()` — `generateAiSection()` 통합. `generateText` + `Output.object({ schema: WeeklyReportAiSchema })` (AI SDK v6) — [`api#17`](https://github.com/four-lovely-fairies/yougabell-api/pull/17)
+- [x] 실패 시 fallback 텍스트 + `aiGeneratedAt=null` (row는 항상 생성)
+- [x] 단위 테스트 30/30 통과 (AI 미설정 stub로 fallback 경로 검증)
+- [ ] 분석 이벤트 2종 (`weekly_report_ai_*`) — 후속 작업 (logger.warn으로 fallback 추적 가능)
 
 ### Phase 4 — RAG 도입 (별도 의사결정 후)
 
@@ -447,9 +449,49 @@ const result = await generateObject({
 
 ---
 
-## 9. 구현 결과 (구현 완료 후 채움)
+## 9. 구현 결과 (Phase 1~3 완료 — 2026-05-25)
 
-- 관련 PR: `umbrella#<doc>`, `api#…` (Phase 1·2·3), `web#…` (Phase 1·2)
-- 마이그레이션 이름: `add_chat_models`, `add_weekly_report_ai_fields`, (Phase 4) `add_rag_models`
-- 스펙 변경점: 챗 모델 4종 신규, 주간 리포트 AI 필드 3개 LLM 채움, `@ai-sdk/google` 의존 추가
-- 후속 과제: Phase 4 RAG, Gemini 유료 티어 전환, 사용자 동의 약관, admin 콘텐츠 CMS
+### 관련 PR
+
+| 단계        | 레포     | PR                                                                    |
+| ----------- | -------- | --------------------------------------------------------------------- |
+| Phase 0 doc | umbrella | [`#9`](https://github.com/four-lovely-fairies/yougabell/pull/9)       |
+| Phase 1 api | api      | [`#15`](https://github.com/four-lovely-fairies/yougabell-api/pull/15) |
+| Phase 1 web | web      | [`#30`](https://github.com/four-lovely-fairies/yougabell-web/pull/30) |
+| Phase 2 api | api      | [`#16`](https://github.com/four-lovely-fairies/yougabell-api/pull/16) |
+| Phase 2 web | web      | [`#31`](https://github.com/four-lovely-fairies/yougabell-web/pull/31) |
+| Phase 3 api | api      | [`#17`](https://github.com/four-lovely-fairies/yougabell-api/pull/17) |
+
+### 도메인 변경점
+
+- **챗 모델 4종**: schema에 이미 존재했던 `ChatSession`/`ChatMessage`/`MessageCard`/`SourceLink` + enum `ChatRole`/`CardAction`을 실제로 사용 시작
+- **주간 리포트 AI 메타 컬럼 3종 신규**: `WeeklyReport.aiGeneratedAt`/`aiPromptTokens`/`aiCompletionTokens`
+- **db push 1회 수동 필요**: api 운영은 `prisma migrate`가 아닌 `db push` 모드 — Phase 3 머지 후 dev/prod DB에 컬럼 추가 명령 한 번씩
+
+### 의존성 변경점
+
+- `yougabell-api`: `ai@^6` + `@ai-sdk/google@^3` + `zod@^4` 추가
+- 환경 변수: `GOOGLE_GENERATIVE_AI_API_KEY` / `AI_CHAT_MODEL` / `AI_REPORT_MODEL` (Render 대시보드 + `.env.example`)
+
+### API 변경점
+
+- `GET /me/chat` (단일 영속 세션 + 최근 50개 메시지)
+- `POST /me/chat/messages` (Phase 1 sync mock — web Phase 2 머지 후 제거 검토 대상)
+- `POST /me/chat/messages/stream` (Phase 2 SSE — text/event-stream, fetch+ReadableStream 클라이언트 가정)
+- `DELETE /me/chat`
+
+### 핵심 fallback 동작
+
+- `GOOGLE_GENERATIVE_AI_API_KEY` 미설정 → chat SSE는 mock 응답을 토큰 단위로 흘려보내고, 주간 리포트는 기존 fallback 텍스트로 row 생성 + `aiGeneratedAt=null`
+- LLM 호출 실패도 동일 — 사용자 경험 저하 최소화
+
+### 후속 과제
+
+- [ ] **Phase 4 (RAG)** — §7 사전 결정 5항목 마감 후 진행
+- [ ] **Phase 5 (통합 검증)** — dev 환경 골든·엣지 케이스 (실 사용 검증)
+- [ ] 분석 이벤트 8종 (`chat_*` 6, `weekly_report_ai_*` 2) 발행 — `lib/analytics.ts`에 추가
+- [ ] `ChatMessage.tokensUsed` 컬럼 채우기 (AI SDK usage 값)
+- [ ] sync `POST /me/chat/messages` 엔드포인트 제거 (web 전환 검증 후)
+- [ ] Gemini 무료 티어 한도 모니터링 + 알람, 유료 전환 정책
+- [ ] 사용자 PII 데이터 정책 (Google AI Studio 학습 데이터 사용 약관 갱신 또는 유료 전환)
+- [ ] admin 콘텐츠 CMS (Phase 4 동반)
