@@ -56,7 +56,7 @@ flowchart TB
 | GitHub 레포                                                                   | 역할                                        | 스택                     | 호스팅 |
 | ----------------------------------------------------------------------------- | ------------------------------------------- | ------------------------ | ------ |
 | [`yougabell`](https://github.com/four-lovely-fairies/yougabell) (umbrella)    | 워크스페이스 인덱스 (이 문서)               | —                        | —      |
-| [`yougabell-api`](https://github.com/four-lovely-fairies/yougabell-api)       | 도메인 API · 챗봇 · LLM 게이트웨이 (anchor) | NestJS, Prisma, TS       | TBD    |
+| [`yougabell-api`](https://github.com/four-lovely-fairies/yougabell-api)       | 도메인 API · 챗봇 · LLM 게이트웨이 (anchor) | NestJS, Prisma, TS       | Render |
 | [`yougabell-web`](https://github.com/four-lovely-fairies/yougabell-web)       | 사용자용 웹 (Expo WebView 타깃)             | Next.js 16, Tailwind, TS | Vercel |
 | [`yougabell-admin`](https://github.com/four-lovely-fairies/yougabell-admin)   | 운영자 CMS                                  | Next.js 16, Tailwind, TS | Vercel |
 | [`yougabell-mobile`](https://github.com/four-lovely-fairies/yougabell-mobile) | RN 셸 (푸시·인증·WebView 컨테이너)          | Expo, TS                 | EAS    |
@@ -84,7 +84,7 @@ flowchart TB
 - **배포**:
   - 웹/어드민: Vercel (Next.js 16)
   - 앱: Expo EAS Build → 스토어 배포
-  - API: 미정 (Fly.io 추천 — Supabase 같은 리전 배치)
+  - API: **Render Web Service** (https://yougabell-api.onrender.com) — main push 시 GitHub auto-deploy
 - **AI**:
   - 클라이언트 SDK: Vercel AI SDK 검토
   - 모델 라우팅: Vercel AI Gateway 검토
@@ -282,7 +282,7 @@ docs: 레포 전략 문서에 Supabase Auth 결정 반영
 - [x] **Prisma 7 + 도메인 스키마 30+ 테이블 작성** (`yougabell-api/prisma/schema.prisma`)
 - [x] AGENTS.md / CLAUDE.md / DESIGN.md 듀얼 셋업 (5개 레포)
 - [ ] Supabase 프로젝트 생성 (dev)
-- [ ] NestJS 호스팅 결정 (Fly.io 추천 / Railway / Render)
+- [x] NestJS 호스팅 결정 — **Render Web Service** (auto-deploy from main)
 - [ ] 첫 마이그레이션 실행 (`prisma migrate dev --name init`)
 - [ ] Supabase Auth Guard 구현 (NestJS)
 - [ ] OpenAPI 스펙 export + 클라이언트 코드젠 (web/admin/mobile)
