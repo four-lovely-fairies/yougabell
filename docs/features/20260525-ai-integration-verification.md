@@ -37,47 +37,42 @@
 
 > Render API + Supabase dev DB + 사용자 JWT 필요. Phase 4 RAG 시드 ingestion 완료 가정.
 
-### 2.1 챗 골든 패스 (web)
+### 2.1 챗 골든 패스 (자동 검증 완료 2026-05-26)
 
-- [ ] `/chat` 페이지 진입 — 빈 상태(마스코트) 노출
-- [ ] 메시지 전송 → user bubble + loading dots 즉시 표시
-- [ ] 첫 토큰 ≤ 1.5초 도달 → streaming bubble로 morph (점멸 caret)
-- [ ] 토큰 누적 → typing effect 자연스러움 (200~600자, 끝까지 ≤ 8초)
-- [ ] `done` 수신 → 본문 + 카드 2~3개 한꺼번에 표시
-- [ ] 출처 링크 1~3개 표시 (RAG chunks의 sourceUrl)
-- [ ] 새로고침 → 이전 대화 복원 (`loadChat()` hydrate)
+> 검증 방식: Supabase admin `generate_link` → action_link follow → `Location` 헤더에서 access_token 추출 → production Render API 직접 curl.
 
-### 2.2 챗 RAG 검증
+- [x] `GET /me/chat` (빈 세션) → `{ session: null, messages: [] }` ✅
+- [x] `POST /me/chat/messages/stream` SSE — 11 token + 1 done + 0 error
+- [x] done payload: 본문 889자 + cards 2건 + sources 3건
+- [x] **새로고침 후 대화 복원** — 재 `GET /me/chat` 호출 시 session.id + user/assistant 메시지 2건 복원 확인
+- [ ] 첫 토큰 latency (Render warm 상태 시 1초대 추정 — 브라우저 timing API 측정 항목)
+- [ ] 시각 검증 (typing caret·카드 우르르) — 브라우저 필요
 
-질문 예시 (KnowledgeBase 시드와 매칭되는 주제):
+### 2.2 챗 RAG 검증 (자동 검증 완료 2026-05-26)
 
-- [ ] "아이가 잠들기 전 한 번만 더 라고 해요" → `mohw__aisarang-sleep-routine.md` chunks retrieve, source `childcare.go.kr`
-- [ ] "떼쓰기 다루는 방법" → `mohw__aisarang-toddler-tantrum.md` chunks retrieve
-- [ ] "4개월 아이 발달이 정상인지" → `cdc__milestones-4mo.md` chunks retrieve, source `cdc.gov`
-- [ ] RAG miss 질문(예: "갈비찜 레시피") → sources 빈 배열 + 응답 일반 양육 상식 수준
+| 질문                                    | retrieve된 chunks (top 5)                                         | sources 노출                                         |
+| --------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------- |
+| "아이가 잠들기 전 한 번만 더 라고 해요" | 수면 루틴 ×3 + 떼쓰기 + 12개월 마일스톤                           | 수면 루틴·떼쓰기·12개월 (3건) ✅                     |
+| "떼쓰기는 어떻게 다루는 게 좋을까요"    | 떼쓰기 + 수면 루틴 + 9개월 마일스톤                               | 떼쓰기·수면 루틴·9개월 (3건) ✅                      |
+| "4개월 아이 발달이 정상인지"            | CDC 4개월 + 9개월 + 6개월 (모두 마일스톤)                         | CDC 4·9·6개월 (3건) ✅                               |
+| "갈비찜 레시피" (miss)                  | top-5는 강제 가져오지만 LLM이 적합도 판단해 양육 코치 톤으로 우회 | sources 3건 표시 (similarity 임계 필터 v2 검토 필요) |
 
-**DB 검증** (psql):
+**DB 검증 (실 row)**:
 
-```sql
-SELECT m.role, m.content, COUNT(r.id) AS retrievals
-FROM "ChatMessage" m
-LEFT JOIN "MessageRetrieval" r ON r."messageId" = m.id
-WHERE m."sessionId" = '<session-id>' AND m.role = 'assistant'
-GROUP BY m.id, m.role, m.content
-ORDER BY m."sentAt" DESC LIMIT 5;
-```
+- [x] `MessageRetrieval` 감사 row 5건 기록 — rank 1~5, similarity 0.65~0.74
+- [x] `ChatMessage.tokensUsed` 채움 — assistant 5732 토큰 (streamText 본문 + cards 추출 generateText 합산)
+- [x] `MessageCard` 2건 저장 (잠자리 약속·잠자리 티켓)
+- [x] `SourceLink` 3건 저장 (childcare.go.kr 2·cdc.gov 1)
+- [x] `ChatSession` lazy create — 첫 메시지 시점 자동 생성
 
-- [ ] assistant 메시지마다 retrievals 1~5건 기록 확인
-- [ ] `tokensUsed` 컬럼 채워짐
-
-### 2.3 챗 엣지 케이스
+### 2.3 챗 엣지 케이스 (브라우저 필요)
 
 - [ ] **LLM 타임아웃**: Gemini API 키 임시 무효화 → mock typing(잠자리 티켓 카드)으로 graceful fallback
 - [ ] **빈 메시지 전송**: send 버튼 disabled, 키보드 enter 무시
 - [ ] **인증 만료**: localStorage Supabase 세션 삭제 → 에러 배너 + 빈 상태
 - [ ] **네트워크 끊김**: fetch 중 wifi off → "스트림이 끊겼어요" 배너
 
-### 2.4 분석 이벤트 (브라우저 devtools)
+### 2.4 분석 이벤트 (브라우저 devtools 필요)
 
 - [ ] `chat_open`
 - [ ] `chat_message_send` (length)
@@ -137,10 +132,45 @@ ORDER BY "createdAt" DESC LIMIT 1;
 
 ---
 
-## 4. 결과 기록 (검증 완료 후 채움)
+## 4. 결과 기록
 
-- 검증일:
-- 검증자:
-- 환경:
-- 발견 이슈 (issue 링크):
-- 추가 작업 항목:
+### 1차 자동 검증 (2026-05-26)
+
+- **검증일**: 2026-05-26
+- **검증자**: 자동 (Supabase admin → magic link → access_token → Render API + DB 검증)
+- **환경**: production Render API (`yougabell-api.onrender.com`) + Supabase dev DB + 시드 콘텐츠 6 docs / 14 chunks
+- **검증 사용자**: `hitedin@gmail.com` (안성진, 자녀 1명 ㅎㅎㅎ)
+
+### 통과 항목
+
+- ✅ 자동화 spec **41/41** pass (chat 4 + RAG 7 + weekly-report 30)
+- ✅ Render API live, 인증 가드 정상 (401)
+- ✅ DB 시드: KnowledgeBase 6 docs/14 chunks/768d, Mission 945, Milestone 159
+- ✅ 챗 SSE 풀스택: 11 token + done + DB 영속화 (session·message·cards·sources·retrievals·tokensUsed)
+- ✅ RAG 정확도: 3개 의도 질문 모두 적합 chunk top 매칭 + sourceUrl 환각 차단
+- ✅ 새로고침 후 대화 복원
+
+### 발견 이슈
+
+1. **RAG miss 질문에 sources가 여전히 표시됨** — "갈비찜 레시피" 같이 양육 무관 질문에도 top-5 retrieved chunks의 sourceUrl이 응답에 노출. LLM은 양육으로 우회하지만 sources는 misleading.
+   - **개선안 (v2)**: `KnowledgeRetrievalService.retrieve`에서 similarity 임계값(예: 0.55) 미만 chunk 필터링, 또는 LLM이 cards 추출 시 실 인용한 source만 sourceLink로 저장
+   - 우선순위: 낮음 (LLM이 부적합 chunk를 무시하긴 함, but 사용자 신뢰도 영향)
+
+### 자동 검증 불가 — 사용자 환경 필요
+
+- 챗 엣지 (LLM 타임아웃·빈 메시지·인증 만료·네트워크 끊김) — 브라우저 + 강제 시나리오
+- 분석 이벤트 6종 (chat\_\*) — devtools console
+- 첫 토큰 latency 측정 — 브라우저 timing API
+- 멀티 디바이스 (web ↔ mobile WebView) — 실 디바이스
+- 시각 검증 (typing caret · 카드 우르르 · loading bubble)
+
+### 주간 리포트 검증 — 환경 보강 후 진행
+
+- 로컬 `.env`에 `WEEKLY_REPORT_CRON_SECRET` 빈 값 — Render에 등록된 값 복사 후 .env 갱신 시 자동 검증 가능
+- 코드 흐름은 chat과 동일 ai 모듈 사용 — 챗 검증 완료로 LLM 호출 자체는 정합 (실 cron 호출만 별도 검증 필요)
+
+### 추가 작업 항목
+
+- [ ] similarity 임계값 필터 (v2) — `KnowledgeRetrievalService.retrieve`
+- [ ] 주간 리포트 cron 실 검증 (사용자가 Render secret 갱신 후)
+- [ ] 사용자 환경 검증 항목 (§2.3 / §2.4 / §2.7) — 사용자 진행 후 doc §4에 추가 기록
