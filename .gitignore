@@ -16,3 +16,6 @@
 .codex/history.jsonl
 .codex/sessions/
 .codex/logs/
+
+# dev.sh log output
+logs/
