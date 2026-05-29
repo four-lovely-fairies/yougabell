@@ -2,8 +2,8 @@
 # dev.sh — 육아밸 web/api dev 서버 동시 실행
 #
 # 동작:
-#   1. yougabell-api 를 백그라운드로 start:dev (port 3000) → logs/api.log
-#   2. yougabell-web 를 백그라운드로 dev (port 3001 auto-fallback) → logs/web.log
+#   1. yougabell-api 를 백그라운드로 start:dev (port 3001) → logs/api.log
+#   2. yougabell-web 를 백그라운드로 dev (port 3000) → logs/web.log
 #   3. tail -f 로 두 로그 stream 출력
 #   4. Ctrl+C 시 두 프로세스 + 자식 일괄 종료
 #
@@ -54,7 +54,7 @@ if [ "$RUN_API" = true ]; then
     echo "❌ $API_DIR 가 없습니다. 워크스페이스 셋업을 먼저 진행하세요." >&2
     exit 1
   fi
-  echo "→ yougabell-api 시작 (port 3000, logs: $LOG_DIR/api.log)"
+  echo "→ yougabell-api 시작 (port 3001, logs: $LOG_DIR/api.log)"
   (cd "$API_DIR" && pnpm start:dev >"$LOG_DIR/api.log" 2>&1) &
   PIDS+=($!)
 fi
@@ -64,7 +64,7 @@ if [ "$RUN_WEB" = true ]; then
     echo "❌ $WEB_DIR 가 없습니다. 워크스페이스 셋업을 먼저 진행하세요." >&2
     exit 1
   fi
-  echo "→ yougabell-web 시작 (port 3001 fallback, logs: $LOG_DIR/web.log)"
+  echo "→ yougabell-web 시작 (port 3000, logs: $LOG_DIR/web.log)"
   (cd "$WEB_DIR" && pnpm dev >"$LOG_DIR/web.log" 2>&1) &
   PIDS+=($!)
 fi
