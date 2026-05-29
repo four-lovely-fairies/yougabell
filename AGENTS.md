@@ -170,6 +170,18 @@ yougabell-mobile (Expo)      │
 - prettier 미설치 레포는 **셋업 시 즉시 추가** (`pnpm add -D prettier`)
 - markdown 외 코드 파일도 동일 — 커밋 전 포매팅이 기본값
 
+### 코드 파일 크기·구조
+
+- **`.ts` / `.tsx` 파일은 400줄을 넘기지 않는다** (전 레포 공통).
+- 400줄을 초과하면 그 파일을 **같은 이름의 하위 디렉토리로 전환**하고, `index.ts`(또는 `index.tsx`)에서 public API를 re-export 해 묶는다. import 경로는 그대로 유지해 **호출부를 바꾸지 않는다.**
+  - 예: `components/mission/mission-screens.tsx` (과대) → `components/mission/mission-screens/`
+    - `intro.tsx` · `timer.tsx` · `effect.tsx` · `feedback.tsx` · `done.tsx` … (화면·관심사 단위 분할)
+    - `index.tsx` → `export { MissionIntroScreen } from "./intro";` 등으로 묶기
+    - 호출부 `@/components/mission/mission-screens` 경로 불변
+- 분할 기준은 **관심사 단위**(컴포넌트·훅·유틸·타입). 단순히 줄 수만 맞추는 기계적 분할 금지.
+- 신규 파일도 이 한도를 전제로 설계 — 한 파일에 export가 쌓일 조짐이면 미리 디렉토리화.
+- 한도 초과가 불가피한 생성 파일(코드젠 산출물 등)은 예외로 두되 그 사유를 명시.
+
 ---
 
 ## 에이전트 파일 구조 (AGENTS.md / CLAUDE.md / DESIGN.md)
