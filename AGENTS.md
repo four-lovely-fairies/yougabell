@@ -61,6 +61,8 @@ flowchart TB
 | [`yougabell-admin`](https://github.com/four-lovely-fairies/yougabell-admin)   | 운영자 CMS                                  | Next.js 16, Tailwind, TS | Vercel |
 | [`yougabell-mobile`](https://github.com/four-lovely-fairies/yougabell-mobile) | RN 셸 (푸시·인증·WebView 컨테이너)          | Expo, TS                 | EAS    |
 
+> **임시 레포** [`yougabell-cron`](https://github.com/four-lovely-fairies/yougabell-cron) (정식 인덱스 외) — 개발자 로컬에서 상시 실행하는 5분 크론. API 웜업 + 미션 알림 디스패치를 한 잡으로 겸함. 정식 크론 대안 도입 시 폐기. 컨셉: [`docs/design/01-warmup-cron-repo.md`](./docs/design/01-warmup-cron-repo.md).
+
 > 타입 공유는 별도 패키지 대신 **NestJS OpenAPI 스펙 → 클라이언트 코드젠**(web/admin/mobile)으로 처리.
 > 도메인 스키마·아키텍처·기능 기획 문서는 **본 umbrella 레포**(`yougabell`)에서 관리:
 >
