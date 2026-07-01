@@ -1,7 +1,7 @@
-# 육아밸 (yougabell)
+# 육아벨 (yougabell)
 
 > **GitHub 조직**: [`four-lovely-fairies`](https://github.com/four-lovely-fairies)
-> **제품/앱 이름**: 육아밸 (영문 식별자: `yougabell`)
+> **제품/앱 이름**: 육아벨 (영문 식별자: `yougabell`)
 > 본 레포([`yougabell`](https://github.com/four-lovely-fairies/yougabell))는 **워크스페이스 umbrella** — 큰 그림·레포 인덱스만 보관.
 > 워킹맘/워킹대디를 위한 육아 정보 검색·기록 서비스.
 > 사용자가 입력한 아이 정보(연령, 발달 단계, 알레르기 등)를 기반으로 AI 챗봇이 맞춤 답변을 제공한다.

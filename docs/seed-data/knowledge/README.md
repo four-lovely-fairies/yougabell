@@ -49,7 +49,7 @@ language: ko
 | ------------------- | ------------------------------------------------------------------------------------------ |
 | CDC Act Early       | 미 연방 정부 저작물 → Public Domain. cdc.gov 정책: "May be reproduced without permission." |
 | 보건복지부 아이사랑 | 공공저작물 자유이용 (대한민국). 출처 표기 권장. childcare.go.kr 콘텐츠                     |
-| internal            | 운영자 직접 작성. License는 `Internal (육아밸)` 표기                                       |
+| internal            | 운영자 직접 작성. License는 `Internal (육아벨)` 표기                                       |
 
 다른 외부 콘텐츠(AAP·도서 등)는 라이선스 검증 후 추가. 라이선스 불명 콘텐츠 추가 금지.
 

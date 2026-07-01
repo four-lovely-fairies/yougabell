@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bootstrap.sh — 육아밸 워크스페이스 셋업 스크립트
+# bootstrap.sh — 육아벨 워크스페이스 셋업 스크립트
 #
 # 동작:
 #   1. umbrella 레포의 부모 디렉토리(워크스페이스)를 작업 위치로 결정

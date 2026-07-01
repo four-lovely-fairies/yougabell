@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# dev.sh — 육아밸 web/api dev 서버 동시 실행
+# dev.sh — 육아벨 web/api dev 서버 동시 실행
 #
 # 동작:
 #   1. yougabell-api 를 백그라운드로 start:dev (port 3001) → logs/api.log
