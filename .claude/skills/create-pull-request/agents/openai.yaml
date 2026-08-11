@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create Pull Request"
+  short_description: "Create conflict-free GitHub pull requests"
+  default_prompt: "Create or update a GitHub pull request with a rendered Markdown body and resolve merge conflicts first."
