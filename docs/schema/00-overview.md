@@ -16,6 +16,7 @@ erDiagram
     User ||--o{ ChatSession : "owns"
     User ||--o{ WeeklyReport : "owns"
     User ||--o{ Notification : "receives"
+    User ||--o{ Inquiry : "submits"
     User ||--o{ UserPushToken : "registers"
     User }o--o| ParentingStyle : "future (분리 예정)"
     User ||--o{ UserParentingAssessment : "future"

@@ -120,7 +120,7 @@ done
 │   ├── README.md  ← 지금 보고 있는 문서
 │   └── docs/
 │       ├── design/00-repo-strategy.md     (레포 전략·DB·인증 결정)
-│       ├── schema/                        (도메인 스키마 11개)
+│       ├── schema/                        (도메인 스키마 12개)
 │       └── features/                      (기능 기획서 — 신규 기능은 여기서 시작)
 ├── yougabell-api/                   (NestJS + Prisma — 구현 anchor)
 │   ├── AGENTS.md
@@ -145,6 +145,6 @@ done
 ## 더 알아보기
 
 - 워크스페이스 큰 그림·아키텍처·결정 사항: [`AGENTS.md`](./AGENTS.md)
-- 도메인 스키마 11개: [`docs/schema/`](./docs/schema)
+- 도메인 스키마 12개: [`docs/schema/`](./docs/schema)
 - 레포 전략·DB·인증 결정: [`docs/design/00-repo-strategy.md`](./docs/design/00-repo-strategy.md)
 - 기능 기획서: [`docs/features/`](./docs/features) — 새 기능은 본 디렉토리에서 기획 시작

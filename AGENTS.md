@@ -67,7 +67,7 @@ flowchart TB
 > 도메인 스키마·아키텍처·기능 기획 문서는 **본 umbrella 레포**(`yougabell`)에서 관리:
 >
 > - 레포 전략: [`docs/design/00-repo-strategy.md`](./docs/design/00-repo-strategy.md)
-> - 도메인 스키마 11개: [`docs/schema/`](./docs/schema)
+> - 도메인 스키마 12개: [`docs/schema/`](./docs/schema)
 > - 기능 기획: [`docs/features/`](./docs/features) — 본 디렉토리에서 기획 후 각 레포에서 구현
 
 ### Umbrella vs Anchor
