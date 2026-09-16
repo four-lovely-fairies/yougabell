@@ -1,6 +1,6 @@
 # 홈 부가 요청 통합
 
-> 작성일: 2026-09-10 · 상태: `accepted (구현 전)`
+> 작성일: 2026-09-10 · 상태: `accepted (PR 검증 완료, merge 전)`
 > 관련 문서: [성능 기준선과 개선 실험](./02-performance-baseline.md),
 > [홈](../features/20260510-home.md),
 > [주간 리포트](../features/20260513-weekly-report.md)
@@ -146,7 +146,7 @@ HomeDashboard와 BottomNav는 sibling이므로 main shell 범위의 작은 clien
 
 ```typescript
 type MainShellReportState = {
-  childId: string;
+  childId: string | null;
   hasUnviewedWeeklyReport: boolean;
   updatedAt: number;
 };
@@ -157,6 +157,9 @@ type MainShellReportContextValue = {
   setHasUnviewedWeeklyReport(hasUnviewed: boolean): void;
 };
 ```
+
+비홈 화면 직접 진입 시 아직 localStorage에 선택 자녀가 없으면 `childId = null`로 기본
+자녀의 상태를 임시 보관한다. 홈 응답을 받으면 실제 `selectedChild.id`로 즉시 교체한다.
 
 - provider의 수명은 main shell이 유지되는 동안이다.
 - localStorage에 새 상태를 영속화하지 않는다.
@@ -324,25 +327,25 @@ DB migration은 없으므로 롤백은 web을 먼저 이전 release로 되돌리
 
 - [ ] 0번 계측 포함 앱의 스토어 배포 완료
 - [ ] 변경 전 홈 최초 진입 요청 수와 성능 기준선 기록
-- [ ] API response 필드명과 기본값을 OpenAPI 계약으로 확정
+- [x] API response 필드명과 기본값을 OpenAPI 계약으로 확정
 
 ### Phase 1 — `yougabell-api`
 
-- [ ] `HomeDashboard` type과 DTO에 두 boolean 추가
-- [ ] 놀이 알림 preference 최소 조회를 병렬 query에 추가
-- [ ] 기존 주간 리포트 조회에서 미확인 상태 파생
-- [ ] HomeService unit test 추가
-- [ ] build 및 OpenAPI export 검증
+- [x] `HomeDashboard` type과 DTO에 두 boolean 추가
+- [x] 놀이 알림 preference 최소 조회를 병렬 query에 추가
+- [x] 기존 주간 리포트 조회에서 미확인 상태 파생
+- [x] HomeService unit test 추가
+- [x] build 및 OpenAPI export 검증
 
 ### Phase 2 — `yougabell-web`
 
-- [ ] OpenAPI schema/codegen 갱신
-- [ ] HomeDashboard 초기 `/me` 제거
-- [ ] main shell report context 추가
-- [ ] 알림 유도 open/save 흐름을 홈 응답 기준으로 변경
-- [ ] BottomNav context 우선·fallback·foreground dedupe 구현
-- [ ] 리포트 viewed 및 자녀 전환 시 context 갱신
-- [ ] unit test, typecheck, production build 검증
+- [x] OpenAPI schema/codegen 갱신
+- [x] HomeDashboard 초기 `/me` 제거
+- [x] main shell report context 추가
+- [x] 알림 유도 open/save 흐름을 홈 응답 기준으로 변경
+- [x] BottomNav context 우선·fallback·foreground dedupe 구현
+- [x] 리포트 viewed 및 자녀 전환 시 context 갱신
+- [x] unit test, typecheck, production build 검증
 
 ### Phase 3 — 통합 검증
 
@@ -354,5 +357,16 @@ DB migration은 없으므로 롤백은 web을 먼저 이전 release로 되돌리
 
 ## 10. 구현 결과
 
-구현 전. 완료 후 API/web PR, 배포 release, 전후 측정 결과와 유지·롤백 결정을 이
-절에 기록한다.
+2026-09-16 구현과 로컬 검증을 완료했고, main merge와 배포는 보류했다.
+
+- API PR: [yougabell-api#76](https://github.com/four-lovely-fairies/yougabell-api/pull/76)
+- web PR: [yougabell-web#151](https://github.com/four-lovely-fairies/yougabell-web/pull/151)
+- API HomeService 단위 테스트 8건, web 단위 테스트 75건, 양쪽 production build 통과
+- 홈 전체 reload와 로드맵 → 홈 10회에서 client API가 매번 `/home` 1건만 발생함을 확인
+- `/home`의 driver `db_count`는 22 → 23으로 1회 증가했지만 제거된 client `/me` 4회와
+  리포트 상태 2회를 합치면 홈 client journey는 28 → 23으로 5회 감소
+- 구현 후 로컬 `screen_first_data` 10회는 P50 985 ms, P75 1,096 ms. 변경 전 탐색
+  표본보다 느렸지만 원격 DB 편차가 크고 동시 교차 측정이 아니므로 회귀로 판정하지 않음
+
+남은 작업은 API 선배포, web 후배포, Android/iOS 실기기 QA와 운영 표본 비교다. 운영
+P75가 악화되면 §8의 순서로 rollback한다.
