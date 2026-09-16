@@ -203,6 +203,10 @@ BottomNav는 다음 우선순위로 상태를 선택한다.
 2. context가 없거나 자녀가 다르면 기존
    `GET /weekly-reports/unviewed-status`를 호출한다.
 
+상태 API에 `childId`가 없으면 `/home`과 동일하게 활성 자녀를 `displayOrder`,
+`createdAt` 순으로 정렬한 첫 번째 자녀를 기본값으로 사용한다. 자녀 조건 없이 사용자의
+모든 리포트에서 `findFirst` 하지 않는다. 활성 자녀가 없으면 `false`를 반환한다.
+
 홈 pathname(`/`)에서는 HomeDashboard가 곧 context를 채우므로 mount 직후 별도 리포트
 상태 요청을 보내지 않는다. 응답 전에는 툴팁을 숨긴다. 홈에서 다른 탭으로 이동할 때
 main shell이 유지되면 context를 그대로 사용한다.
