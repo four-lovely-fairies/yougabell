@@ -10,8 +10,8 @@
 ## 0. 결정 요약
 
 화면의 최초 데이터는 Next.js Server Component가 Nest API에서 가져온다. 브라우저가 React를
-hydrate한 뒤 다시 같은 API를 호출하는 client fetch waterfall을 제거하고, Next의 RSC
-prefetch와 Client Router Cache로 탭 이동 대기를 줄인다.
+hydrate한 뒤 다시 같은 API를 호출하는 client fetch waterfall을 제거한다. 탭 이동은 우선
+기본 RSC navigation으로 측정하고, route prefetch는 수치가 나쁠 때만 후속 적용한다.
 
 TanStack Query는 이번 작업에 도입하지 않는다. Server Component와 Query가 같은 데이터의
 최신성을 동시에 관리하면 탭 이동마다 server fetch가 실행되는 동안 browser Query cache는
@@ -24,29 +24,27 @@ WebView → Next Server Component → Nest GET /home
         ← HTML/RSC에 포함된 홈 데이터
         → 별도 client GET /home 없이 렌더
 
-다른 탭에서 홈 route prefetch
-현재 화면은 즉시 표시
-→ background에서 홈 RSC 생성
-→ Next가 Nest GET /home
-→ browser Router Cache에 RSC 저장
-
 홈 탭 클릭
-→ 유효한 RSC가 있으면 즉시 사용
-→ 없으면 홈 RSC와 GET /home을 요청
+→ 홈 RSC 요청
+→ Next가 Nest GET /home
+→ 홈 표시
+
+후속 최적화가 필요한 경우
+→ `<Link prefetch>`로 위 작업을 클릭 전에 이동
 ```
 
-| 항목              | 결정                                               | 이유                                              |
-| ----------------- | -------------------------------------------------- | ------------------------------------------------- |
-| 데이터 소유자     | 화면별 Server Component                            | 한 데이터의 freshness 책임을 한 곳에 둠           |
-| 홈 `/home`        | 홈 Server Component에서 조회해 props로 전달        | 첫 화면 client waterfall 제거                     |
-| Query             | 이번 범위에서 도입하지 않음                        | Server fetch와 client cache의 중복 책임 방지      |
-| Nest 응답 캐시    | 우선 `cache: "no-store"`                           | 사용자·자녀 데이터의 격리와 mutation 최신성 우선  |
-| RSC 이동 최적화   | 공통 BottomNav에서 홈 route prefetch               | 클릭 전에 RSC를 준비하되 현재 화면을 막지 않음    |
-| mutation 후 갱신  | 즉시 local/optimistic 반영 후 `router.refresh()`   | 변경 결과를 Server Component 진실과 다시 일치시킴 |
-| 선택 자녀         | cookie를 영속 source of truth로 사용               | Server와 Client가 같은 값을 읽을 수 있음          |
-| 기존 localStorage | cookie로 1회 이관 후 제거                          | 두 저장소의 지속적 동기화 방지                    |
-| 서버 캐시         | 측정 전에는 도입하지 않음                          | 사용자별 key·무효화 복잡도를 먼저 만들지 않음     |
-| 실험 기능         | `staleTimes`, `use cache: private`에 의존하지 않음 | 초기 구현을 실험 API에 묶지 않음                  |
+| 항목              | 결정                                               | 이유                                             |
+| ----------------- | -------------------------------------------------- | ------------------------------------------------ |
+| 데이터 소유자     | 화면별 Server Component                            | 한 데이터의 freshness 책임을 한 곳에 둠          |
+| 홈 `/home`        | 홈 Server Component에서 조회해 props로 전달        | 첫 화면 client waterfall 제거                    |
+| Query             | 이번 범위에서 도입하지 않음                        | Server fetch와 client cache의 중복 책임 방지     |
+| Nest 응답 캐시    | 우선 `cache: "no-store"`                           | 사용자·자녀 데이터의 격리와 mutation 최신성 우선 |
+| RSC 이동 최적화   | 우선 기본 navigation 측정, prefetch는 후속 판단    | 선요청 비용 없이 실제 병목부터 확인              |
+| mutation 후 갱신  | 안전한 작업만 optimistic, 필요할 때만 refresh      | 과도한 추측 UI와 RSC 재요청 방지                 |
+| 선택 자녀         | cookie를 영속 source of truth로 사용               | Server와 Client가 같은 값을 읽을 수 있음         |
+| 기존 localStorage | cookie로 1회 이관 후 제거                          | 두 저장소의 지속적 동기화 방지                   |
+| 서버 캐시         | 측정 전에는 도입하지 않음                          | 사용자별 key·무효화 복잡도를 먼저 만들지 않음    |
+| 실험 기능         | `staleTimes`, `use cache: private`에 의존하지 않음 | 초기 구현을 실험 API에 묶지 않음                 |
 
 ## 1. 현재 상태와 문제
 
@@ -78,14 +76,15 @@ WebView → Next Server Component → Nest GET /home
 - 홈의 실제 데이터를 Server Component에서 받아 첫 응답에 포함한다.
 - 최초 홈에서 브라우저의 중복 `/home` 요청을 제거한다.
 - 홈·설정·리포트 등 주요 읽기 fetch를 단계적으로 Server Component로 이동한다.
-- route prefetch가 현재 화면 렌더를 막지 않으면서 탭 클릭 대기를 줄이게 한다.
-- mutation 뒤 optimistic UI와 `router.refresh()`의 역할을 명확히 한다.
+- 기본 RSC navigation의 탭 클릭 대기와 API 호출 수를 먼저 측정한다.
+- mutation별 optimistic UI·local update·`router.refresh()` 기준을 명확히 한다.
 - RSC, Next→Nest API, 화면 표시 시간을 분리해 측정한다.
 - 각 단계가 독립적으로 revert 가능하게 한다.
 
 ### 2.2 비목표
 
 - TanStack Query 또는 SWR 도입
+- BottomNav route prefetch 적용
 - Next 서버에 인증 사용자 데이터를 장기 저장하는 shared cache
 - `use cache: private`, experimental `staleTimes`, Cache Components 도입
 - `/mobile-entry` hard reload 개선
@@ -138,8 +137,8 @@ Query cache 있음
 ```
 
 이 구조에서 Query는 mutation·background refetch 기능은 제공하지만 탭 클릭부터 화면 전환까지
-걸리는 서버 대기를 제거하지 못한다. 우선 Server Component와 Next route prefetch만으로 수치를
-확인하고, Query가 해결할 구체적인 잔여 문제가 생길 때 도입한다.
+걸리는 서버 대기를 제거하지 못한다. 우선 Server Component 전환 자체의 수치를 확인하고,
+Query가 해결할 구체적인 잔여 문제가 생길 때 도입한다.
 
 ## 4. 홈 Server Component 전환
 
@@ -183,6 +182,19 @@ export async function fetchServerHome(
   cookie를 정리한다.
 - 같은 서버 렌더에서 중복 호출될 가능성이 있으면 React `cache()`로 요청 단위만 dedupe한다.
 - 장기 server cache로 사용하지 않는다.
+
+`no-store`는 Server Component가 cache를 사용할 수 없어서가 아니다. 이번 1차 전환에서는 다음
+이유로 API 응답을 의도적으로 저장하지 않는다.
+
+- `/home`은 로그인 사용자와 선택 자녀에 따라 달라지는 개인화 응답이다.
+- 놀이 완료·기분 기록·자녀 설정 등 여러 mutation이 응답을 바꾼다.
+- 아직 사용자·자녀별 cache key와 mutation별 무효화 정책을 정의하지 않았다.
+- RSC 전환과 server cache 도입을 동시에 하면 성능·stale 문제의 원인을 분리하기 어렵다.
+
+따라서 이번에는 매 RSC 생성 시 Nest의 최신 응답을 받고, client waterfall 제거 효과만 먼저
+검증한다. 측정에서 `server_home`이 주요 병목으로 남을 때 사용자·자녀·날짜를 포함한 key와
+tag 무효화 정책을 설계한 뒤 server cache를 별도 실험한다. 인증 응답을 사용자 구분 없는
+shared cache에 저장하지 않는다.
 
 ### 4.2 홈 page
 
@@ -275,34 +287,37 @@ cookie로 통일한다.
 이 로직은 영구적인 이중 저장이 아니라 배포 전환을 위한 일회성 호환 코드다. 충분한 전환
 기간 뒤 localStorage migration 코드는 제거할 수 있다.
 
-## 6. RSC route prefetch
+예를 들어 기존 사용자가 localStorage에 자녀 B를 선택해 둔 상태라면, 새 버전의 최초 실행에서
+cookie가 없는 것을 확인하고 B의 ID를 cookie로 복사한 뒤 기존 localStorage 항목을 삭제한다.
+그다음부터 Server Component와 Client Component 모두 cookie의 B를 읽는다. 여기서 “한 번
+이관 후 제거”란 사용자 선택 자녀를 삭제한다는 뜻이 아니라, 같은 값을 두 저장소에서 계속
+관리하지 않도록 이전 저장 위치인 localStorage 항목만 없앤다는 뜻이다.
 
-`cache: "no-store"`는 Next 서버의 Nest 응답 캐시를 끈다. 브라우저의 Client Router Cache와는
-다르다. 홈 RSC를 명시적으로 prefetch하면 현재 화면을 먼저 표시한 뒤 background에서 RSC를
-준비하고, 유효한 payload가 있는 동안 홈 클릭 시 재사용할 수 있다.
+## 6. RSC route prefetch는 후속 후보
 
-공통 BottomNav의 홈 이동은 `<button onClick={router.push}>` 대신 Next `<Link>`를 기본으로
-사용한다.
+이번 구현에서는 BottomNav의 `router.push` 동작을 route prefetch 목적으로 바꾸지 않는다.
+홈 Server Component 전환 전후의 기본 navigation을 먼저 측정한다.
 
-```tsx
-<Link href="/" prefetch={true} onClick={handleHomeNavigation}>
-  홈
-</Link>
+```text
+홈 탭 클릭
+→ 홈 RSC 요청
+→ Next→Nest GET /home
+→ 홈 표시
 ```
 
-- prefetch는 현재 route 표시를 block하지 않는다.
-- 같은 홈 RSC가 Client Router Cache에 유효하면 네트워크 요청을 반복하지 않는다.
-- dynamic route를 완전히 prefetch할 때 Next의 기본 client cache 수명은 현재 약 5분이지만,
-  이 값에 제품 freshness를 의존하지 않는다.
-- RSC cache가 없으면 홈 클릭 시 RSC와 Next→Nest `/home` 요청이 실행되는 것이 정상이다.
-- `router.prefetch("/")`를 pathname effect에서 반복 호출하는 코드는 실제 `<Link>` 동작을
-  측정한 뒤에만 추가한다.
-- prefetch는 API 요청을 제거하지 않고 클릭 전에 옮길 뿐이므로 server `/home` 호출 수도
-  함께 측정한다.
+다음 조건이 확인될 때만 별도 실험으로 `<Link prefetch={true}>` 또는
+`router.prefetch("/")`를 추가한다.
 
-BottomNav를 공유하는 최상위 탭들은 필요하면 `(tabs)` Route Group으로 정리한다. 이 변경의
-목적은 공통 navigation UI이며 홈 데이터를 공통 layout으로 끌어올리기 위한 것이 아니다.
-미션 타이머·피드백처럼 BottomNav가 없어야 하는 화면은 별도 layout을 유지한다.
+- 홈 탭 클릭→표시 P75가 사용자 체감상 느림
+- 그 지연의 대부분이 RSC와 `server_home` 대기임
+- 선요청으로 늘어나는 API 호출량을 감당할 수 있음
+- 홈을 실제로 누르는 비율이 높아 prefetch 낭비가 작음
+
+prefetch는 API 요청을 제거하지 않고 클릭 전 background로 옮기는 최적화다. 적용할 때는 현재
+화면 표시 시간, 홈 클릭 시간, Next→Nest 호출 증가량을 함께 비교한다.
+
+BottomNav를 공유하는 최상위 탭들을 `(tabs)` Route Group으로 정리하는 작업도 prefetch 도입에
+필수는 아니다. 실제 navigation UI 중복이나 layout 교체 문제가 확인될 때 별도 범위로 다룬다.
 
 ## 7. Mutation과 갱신
 
@@ -311,31 +326,62 @@ BottomNav를 공유하는 최상위 탭들은 필요하면 `(tabs)` Route Group�
 
 ```text
 사용자 동작
-→ local/optimistic 반영
-→ Nest mutation
-→ 성공: router.refresh()로 Server Component 재검증
-→ 실패: optimistic state 원복과 오류 표시
+→ 안전하고 되돌리기 쉬운 작업이면 즉시 optimistic 반영
+→ Nest mutation 전송
+→ 성공: mutation 응답으로 충분하면 그대로 종료
+→ 성공: 파생 서버 데이터가 바뀌면 필요한 route만 router.refresh()
+→ 실패: optimistic state를 썼다면 원복하고 오류 표시
 ```
 
-| 작업                 | 즉시 화면 반영                      | 서버 재검증                           |
-| -------------------- | ----------------------------------- | ------------------------------------- |
-| 알림 한 건/전체 읽기 | unread count/list local update      | background `router.refresh()`         |
-| 기분 기록            | 선택 결과 local update              | background `router.refresh()`         |
-| 자녀 전환            | cookie·선택 UI 갱신, 이전 본문 숨김 | `router.refresh()`                    |
-| 놀이 완료·피드백     | 완료 화면 유지                      | 홈 이동 또는 refresh에서 최신 `/home` |
-| 리포트 viewed        | 툴팁 local 제거                     | 해당 route refresh                    |
-| 설정 변경            | 저장된 값 local 반영                | 설정 route refresh                    |
+| 작업                     | optimistic 적용                                        | 성공 후 처리                                       |
+| ------------------------ | ------------------------------------------------------ | -------------------------------------------------- |
+| 알림 한 건/전체 읽기     | 적용. count/list를 정확히 되돌릴 수 있음               | 응답으로 확정 가능하면 refresh 생략                |
+| 기분 기록                | 중복 제출을 막고 원복 가능할 때만 적용                 | 다른 파생 데이터가 바뀔 때만 refresh               |
+| 자녀 전환                | 홈 본문은 추측 갱신하지 않음. pending UI만 표시        | cookie 저장 후 `router.refresh()`                  |
+| 놀이 완료·피드백         | 연속일·달력·리포트를 추측하지 않고 완료 화면만 유지    | 서버 성공 뒤 이동한 홈 RSC에서 최신 데이터 조회    |
+| 리포트 viewed            | 툴팁 제거는 적용하고 실패 시 복원                      | 응답으로 확정 가능하면 refresh 생략                |
+| 자녀 생성·삭제·순서 변경 | 기본적으로 적용하지 않음                               | 서버 성공 후 `router.refresh()`                    |
+| 설정 변경                | 서버가 값을 정규화할 수 있으므로 성공 전 확정하지 않음 | 응답으로 충분하면 local 반영, 아니면 route refresh |
 
 `router.refresh()`는 browser history를 추가하지 않고 현재 route의 Server Component payload를
 다시 요청한다. 기존 Client Component state를 무조건 모두 초기화한다고 가정하지 말고 화면별
-QA를 수행한다.
+QA를 수행한다. mutation마다 무조건 호출하지 않는다. 현재 화면에 필요한 변경 결과가 mutation
+응답에 전부 있고 다른 파생 데이터가 바뀌지 않았다면 local state만 확정하는 편이 요청 수와
+화면 안정성에 유리하다.
 
-Server Action과 `revalidatePath`는 이번 필수 범위가 아니다. 향후 Next server cache를 도입할
-때 mutation과 cache invalidation을 서버 경계로 옮기는 작업으로 별도 검토한다.
+### 7.1 `router.refresh()`와 server revalidation
+
+두 방식은 대체 관계가 아니라 역할이 다르다.
+
+| 방식                              | 역할                                                                | 현재 단계의 판단                                |
+| --------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------- |
+| `router.refresh()`                | browser가 현재 route의 새 RSC를 요청해 화면을 최신 서버 상태와 맞춤 | `no-store`에서도 동작. 필요한 mutation에만 사용 |
+| `revalidatePath()`                | server에서 특정 page/layout의 cached data를 무효화                  | 현재 핵심 API가 `no-store`라 얻는 이득이 없음   |
+| `revalidateTag()` / `updateTag()` | tag가 붙은 cached data를 정밀하게 stale/expire 처리                 | 향후 server cache를 도입할 때 검토              |
+
+`revalidatePath()`나 `revalidateTag()` 자체는 사용자가 보는 화면을 optimistic하게 바꾸지 않는다.
+즉각적인 UX는 Client Component의 local state 또는 `useOptimistic`이 담당한다. 반대로
+`router.refresh()`는 현재 화면을 실제로 다시 요청하므로 구현은 단순하지만 RSC와 Nest 호출 비용이
+든다.
+
+`revalidatePath()`는 Client Component에서 직접 호출할 수 없고 Server Function 또는 Route
+Handler가 필요하다. Server Function에서 실행하면 사용자가 그 path를 보고 있을 때 UI 갱신까지
+연결할 수 있지만, 현재의 browser→Nest mutation을 Next Server Action으로 감싸는 구조 변경이
+추가된다. 현재 mutation은 browser에서 Nest로 직접 보내고 API fetch도 `no-store`이므로, 1차
+구현에서는 `router.refresh()`가 개발 복잡도가 낮고 결과도 명확하다. 단, 즉시 갱신이 필요 없는
+작업에는 이마저 생략한다.
+
+향후 mutation을 Server Action/Route Handler로 옮기고 server cache를 켜면 넓은 path 단위
+`revalidatePath()`보다 데이터별 tag 무효화를 우선 검토한다. 사용자가 방금 쓴 값을 즉시 읽어야
+하는 Server Action에는 `updateTag()`, stale-while-revalidate가 허용되는 데이터에는
+`revalidateTag(tag, "max")`가 더 구체적이다.
 
 ## 8. 후속 화면 이전
 
-홈에서 패턴과 성능 효과를 확인한 뒤 화면별로 독립 이전한다.
+홈에서 패턴과 성능 효과를 확인한 뒤 화면별로 적합성을 다시 확인하고 독립 이전한다. 아래
+화면들은 모두 최초 읽기를 Server Component로 옮기기 좋은 후보이지만, 화면 전체를 Server
+Component로 바꾼다는 뜻은 아니다. 사용자 상호작용·폼·timer·streaming은 Client Component에
+남긴다.
 
 ### 8.1 설정 `/me`
 
@@ -360,6 +406,12 @@ Query를 바로 도입하지 않고 다음 순서로 단순화한다.
 - viewed·milestone mutation은 client 상호작용을 유지하고 성공 뒤 refresh한다.
 - 홈 응답에 이미 포함된 리포트 상태를 다른 route의 숨은 cache로 간주하지 않는다.
 
+주간 리포트는 URL 기반의 읽기 중심 본문이라 우선순위가 높다. 로드맵도 최초 목록은 좋은
+후보지만 milestone 변경이나 펼침 상태 등 상호작용은 client에 남긴다. 설정은 사용자·자녀의
+안정적인 초기 데이터가 많아 적합하지만, 입력 폼은 client에 남긴다. 따라서 설정→리포트→로드맵
+순서는 확정된 일괄 변환 순서가 아니라 홈 결과 뒤 실제 중복 요청 수·화면 복잡도·기대 효과로
+조정하는 후보 순서다.
+
 ### 8.3 채팅과 미션
 
 - 채팅 history의 최초 읽기는 Server Component 이전 후보지만 streaming 대화 상태는 client에
@@ -370,15 +422,14 @@ Query를 바로 도입하지 않고 다음 순서로 단순화한다.
 
 ## 9. TanStack Query 후속 도입 기준
 
-다음 문제가 Server Component 전환과 route prefetch 이후에도 실제 측정으로 남을 때만 Query
-설계를 다시 연다.
+다음 문제가 Server Component 전환 이후에도 실제 측정으로 남을 때만 Query 설계를 다시 연다.
 
 - RSC가 준비될 때까지 기존 데이터를 먼저 보여줘야 하는 요구가 큼
 - 같은 응답을 서로 독립적인 여러 route가 자주 재사용함
 - background refetch와 stale-while-revalidate가 UX에 필수임
 - pagination·infinite query·요청 dedupe가 반복 구현되고 있음
 - 여러 mutation의 optimistic update와 rollback이 복잡해짐
-- route prefetch로 인한 선요청 낭비가 client cache보다 큼
+- 탭 재방문에서 RSC를 기다리는 UX가 반복되고 이전 데이터를 즉시 보여줄 필요가 큼
 
 Query를 도입할 때는 데이터별 소유권을 다시 정한다.
 
@@ -402,7 +453,6 @@ SSR prefetch + Query 공동 소유
 - 성능 이벤트에는 user ID, child ID, 이름, access token을 넣지 않는다.
 - 인증 실패는 기존 `/mobile-entry`·로그인 복구 흐름과 일관되게 처리한다.
 - server fetch 실패는 route `error.tsx` 또는 화면별 오류 UI로 복구한다.
-- route prefetch 실패가 현재 표시 중인 화면을 실패시키지 않게 한다.
 - 다른 계정 로그인은 full reload 또는 명시적인 router/cache 초기화 경로로 이전 RSC 상태를
   제거한다.
 - cookie에는 선택 자녀 ID 외 개인정보를 저장하지 않는다.
@@ -412,10 +462,10 @@ SSR prefetch + Query 공동 소유
 1. `refactor(web)`: server-only API helper와 request 단위 계측·오류 처리
 2. `feat(web)`: 선택 자녀 cookie source of truth와 localStorage 1회 migration
 3. `refactor(web)`: 홈 `/home` fetch를 Server Component로 이동하고 client 최초 fetch 제거
-4. `perf(web)`: BottomNav 홈 `<Link>` prefetch와 RSC/API 호출 계측
-5. `refactor(web)`: 홈 mutation optimistic state와 `router.refresh()` 계약 정리
+4. `perf(web)`: 기본 탭 navigation의 RSC/API 호출과 화면 표시 시간 계측
+5. `refactor(web)`: mutation별 selective optimistic state와 refresh 계약 정리
 6. `test(web)`: 최초 진입·탭 복귀·자녀 전환·mutation·오류 통합 테스트
-7. 홈 효과 확인 뒤 설정→리포트→로드맵 순으로 Server Component 이전
+7. 홈 효과 확인 뒤 설정·리포트·로드맵의 적합성과 우선순위를 각각 평가해 이전
 
 각 단계는 build와 QA를 통과한 뒤 다음 단계로 진행하고 독립적으로 revert 가능하게 한다.
 API 계약과 DB migration은 예정하지 않는다. mobile 변경도 예정하지 않는다.
@@ -444,12 +494,10 @@ profile·viewport·network 조건에서 비교한다. 준비 실행 1회를 제�
 홈 → 로드맵 또는 리포트 → 홈
 ```
 
-- 현재 탭 진입 완료와 홈 background RSC prefetch가 겹치는지
 - 홈 탭 클릭→실제 홈 콘텐츠 표시
 - `?_rsc=` 요청 수·시간·transfer size
 - Next→Nest `server_home` 호출 수·시간
-- prefetch cache hit과 miss 분리
-- 홈을 누르지 않았을 때 낭비된 prefetch 비율
+- 같은 시나리오 반복 시 Router Cache 재사용 여부와 요청 수 변화
 
 ### 12.3 mutation
 
@@ -463,9 +511,9 @@ profile·viewport·network 조건에서 비교한다. 준비 실행 1회를 제�
 - 최초 홈에서 HomeDashboard mount 뒤 browser `/home` 요청이 없다.
 - 기존 client waterfall 대비 첫 홈 `screen_first_data`와 LCP가 개선되거나 유의미하게 악화되지
   않는다.
-- route prefetch가 로드맵·리포트 등 현재 화면 표시를 block하지 않는다.
-- 유효한 Router Cache 안의 반복 홈 이동에서 추가 RSC·`server_home` 요청이 발생하지 않는다.
-- cache miss에서는 RSC와 `/home` 요청이 한 번씩만 발생한다.
+- 기본 탭 복귀에서 RSC와 `server_home` 호출 수·시간을 변경 전과 비교할 수 있다.
+- RSC cache miss에서는 RSC와 `/home` 요청이 한 번씩만 발생하고 browser의 별도 `/home`
+  요청은 없다.
 - mutation과 자녀 전환 뒤 최신 서버 상태가 보인다.
 - 다자녀 데이터나 다른 계정 데이터가 섞이지 않는다.
 - server error·offline·401에서 기존 복구 흐름이 유지된다.
@@ -481,10 +529,10 @@ profile·viewport·network 조건에서 비교한다. 준비 실행 1회를 제�
 2. 기존 localStorage 선택 자녀가 cookie로 이관되고 잘못된 자녀가 노출되지 않는지 확인
 3. 홈→로드맵→홈을 3회 반복해 RSC와 `server_home` 요청 수 확인
 4. 홈→리포트→홈을 반복해 동일하게 확인
-5. prefetch 진행 중 즉시 홈을 눌러 진행 중 요청이 중복되지 않는지 확인
-6. 홈을 누르지 않았을 때 background prefetch가 현재 화면을 방해하지 않는지 확인
-7. 자녀 A→B→A 전환 중 이름·추천·리포트가 섞이지 않는지 확인
-8. 알림 읽기·기분 기록 뒤 optimistic UI와 refresh 결과 확인
+5. 자녀 A→B→A 전환 중 이름·추천·리포트가 섞이지 않는지 확인
+6. 알림·리포트 viewed 실패 시 optimistic UI가 원복되는지 확인
+7. 자녀 변경·놀이 완료처럼 추측 갱신하지 않는 작업의 pending UI와 최신 결과 확인
+8. 불필요한 mutation 뒤 `router.refresh()`가 실행되지 않는지 확인
 9. 놀이 완료→홈 이동 후 완료 상태·연속일·달력 확인
 10. 앱 background→foreground와 날짜 변경 후 홈 최신성 확인
 11. server `/home` 실패·401·offline 후 오류와 재시도 확인
@@ -493,8 +541,8 @@ profile·viewport·network 조건에서 비교한다. 준비 실행 1회를 제�
 ## 14. 롤백
 
 DB migration과 API 계약 변경이 없으므로 web 구현 PR revert로 원복한다. server helper,
-cookie migration, 홈 Server Component 전환, route prefetch, mutation refresh를 독립 커밋으로
-두어 문제가 생긴 단계만 되돌릴 수 있게 한다.
+cookie migration, 홈 Server Component 전환, mutation refresh를 독립 커밋으로 두어 문제가
+생긴 단계만 되돌릴 수 있게 한다.
 
 다음 중 하나가 발생하면 성능 이득과 무관하게 즉시 롤백한다.
 
@@ -502,7 +550,6 @@ cookie migration, 홈 Server Component 전환, route prefetch, mutation refresh�
 - 잘못된 자녀 화면 표시
 - mutation 뒤 핵심 상태가 장시간 stale
 - 최초 홈 FCP/LCP 또는 앱 아이콘→홈 준비 시간의 유의미한 악화
-- route prefetch가 다른 탭 표시를 방해하거나 API 부하를 과도하게 증가시킴
 
 ## 15. 참고 자료
 
@@ -511,4 +558,7 @@ cookie migration, 홈 Server Component 전환, route prefetch, mutation refresh�
 - [Next.js: Prefetching](https://nextjs.org/docs/app/guides/prefetching)
 - [Next.js: Route Groups](https://nextjs.org/docs/app/getting-started/project-structure#route-groups-and-private-folders)
 - [Next.js: `router.refresh`](https://nextjs.org/docs/app/api-reference/functions/use-router)
+- [Next.js: `revalidatePath`](https://nextjs.org/docs/app/api-reference/functions/revalidatePath)
+- [Next.js: `revalidateTag`](https://nextjs.org/docs/app/api-reference/functions/revalidateTag)
+- [Next.js: `updateTag`](https://nextjs.org/docs/app/api-reference/functions/updateTag)
 - [TanStack Query: Advanced Server Rendering](https://tanstack.com/query/latest/docs/framework/react/guides/advanced-ssr)
