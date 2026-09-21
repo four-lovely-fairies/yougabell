@@ -42,7 +42,7 @@ WebView → Next Server Component → Nest GET /home
 | RSC 이동 최적화   | 우선 기본 navigation 측정, prefetch는 후속 판단    | 선요청 비용 없이 실제 병목부터 확인              |
 | mutation 후 갱신  | 안전한 작업만 optimistic, 필요할 때만 refresh      | 과도한 추측 UI와 RSC 재요청 방지                 |
 | 선택 자녀         | cookie를 영속 source of truth로 사용               | Server와 Client가 같은 값을 읽을 수 있음         |
-| 기존 localStorage | cookie로 1회 이관 후 제거                          | 두 저장소의 지속적 동기화 방지                   |
+| 기존 localStorage | 이관하지 않고 더 이상 읽거나 쓰지 않음             | 기본 자녀 선택 규칙으로 단순화                   |
 | 서버 캐시         | 측정 전에는 도입하지 않음                          | 사용자별 key·무효화 복잡도를 먼저 만들지 않음    |
 | 실험 기능         | `staleTimes`, `use cache: private`에 의존하지 않음 | 초기 구현을 실험 API에 묶지 않음                 |
 
@@ -272,26 +272,19 @@ cookie로 통일한다.
 - 화면 내 현재 선택은 React state로 관리하되 영속값은 cookie 하나만 사용한다.
 - 로그아웃·계정 변경·선택 자녀 삭제 시 cookie를 제거한다.
 
-### 5.1 기존 사용자 이관
+### 5.1 cookie가 없는 사용자
 
-기존 사용자는 `home:selected-child-id` localStorage만 가질 수 있다.
+기존 `home:selected-child-id` localStorage 값은 이관하지 않고 새 코드에서 더 이상 읽거나 쓰지
+않는다. cookie가 없는 사용자는 신규 로그인 사용자와 같은 흐름을 사용한다.
 
-1. cookie가 있으면 cookie를 사용한다.
-2. cookie가 없고 localStorage가 있으면 값을 cookie로 한 번 복사한다.
-3. cookie 저장 뒤 localStorage 값을 삭제한다.
-4. Server Component 데이터를 다시 받아야 하면 `router.refresh()`한다.
-5. cookie와 localStorage가 모두 없으면 API 기본 자녀를 사용하고 응답 ID를 cookie에 저장한다.
-6. 기존 localStorage와 server 기본 자녀가 다를 때 잘못된 자녀 본문이 잠깐 보이지 않도록
-   migration gate를 둔다.
+1. Server Component가 `childId` 없이 `/home`을 요청한다.
+2. API가 첫 번째 기본 활성 자녀를 선택한다.
+3. 화면은 해당 자녀의 응답으로 바로 렌더한다.
+4. Client Component가 응답의 자녀 ID를 cookie에 저장한다.
+5. 이후 요청부터 Server Component와 Client Component가 같은 cookie를 사용한다.
 
-이 로직은 영구적인 이중 저장이 아니라 배포 전환을 위한 일회성 호환 코드다. 충분한 전환
-기간 뒤 localStorage migration 코드는 제거할 수 있다.
-
-예를 들어 기존 사용자가 localStorage에 자녀 B를 선택해 둔 상태라면, 새 버전의 최초 실행에서
-cookie가 없는 것을 확인하고 B의 ID를 cookie로 복사한 뒤 기존 localStorage 항목을 삭제한다.
-그다음부터 Server Component와 Client Component 모두 cookie의 B를 읽는다. 여기서 “한 번
-이관 후 제거”란 사용자 선택 자녀를 삭제한다는 뜻이 아니라, 같은 값을 두 저장소에서 계속
-관리하지 않도록 이전 저장 위치인 localStorage 항목만 없앤다는 뜻이다.
+기존 사용자가 전에 다른 자녀를 선택했더라도 최초 한 번 기본 자녀로 돌아가는 것을 허용한다.
+localStorage migration gate나 두 저장소 동기화 로직은 만들지 않는다.
 
 ## 6. RSC route prefetch는 후속 후보
 
@@ -348,6 +341,12 @@ BottomNav를 공유하는 최상위 탭들을 `(tabs)` Route Group으로 정리�
 QA를 수행한다. mutation마다 무조건 호출하지 않는다. 현재 화면에 필요한 변경 결과가 mutation
 응답에 전부 있고 다른 파생 데이터가 바뀌지 않았다면 local state만 확정하는 편이 요청 수와
 화면 안정성에 유리하다.
+
+`router.refresh()`는 브라우저 전체 새로고침이 아니다. 새 RSC payload를 기존 화면에 merge하고,
+영향받지 않은 Client Component state와 scroll 같은 browser state는 유지한다. 따라서 정상
+구현에서는 흰 화면이나 전체 스켈레톤으로 바뀌는 깜빡임이 없어야 한다. refresh 직전에 기존
+본문을 비우거나 route 전체에 새 `key`를 주지 않고, `useTransition`으로 기존 본문을 유지하면서
+버튼이나 작은 progress indicator만 pending 상태로 표시한다.
 
 ### 7.1 `router.refresh()`와 server revalidation
 
@@ -460,7 +459,7 @@ SSR prefetch + Query 공동 소유
 ## 11. 구현 순서와 커밋 단위
 
 1. `refactor(web)`: server-only API helper와 request 단위 계측·오류 처리
-2. `feat(web)`: 선택 자녀 cookie source of truth와 localStorage 1회 migration
+2. `feat(web)`: 선택 자녀 cookie source of truth와 기본 자녀 fallback
 3. `refactor(web)`: 홈 `/home` fetch를 Server Component로 이동하고 client 최초 fetch 제거
 4. `perf(web)`: 기본 탭 navigation의 RSC/API 호출과 화면 표시 시간 계측
 5. `refactor(web)`: mutation별 selective optimistic state와 refresh 계약 정리
@@ -504,6 +503,7 @@ profile·viewport·network 조건에서 비교한다. 준비 실행 1회를 제�
 - 알림 읽음·기분 기록·자녀 전환 후 즉시 UI 반영 시간
 - `router.refresh()` RSC와 Next→Nest API 시간
 - optimistic state 원복·중복 요청·화면 깜박임
+- refresh 중 기존 본문 유지와 전체 화면 깜빡임 여부
 - 놀이 완료 뒤 홈의 완료 상태·연속일·달력 일치
 
 ### 12.4 완료 조건
@@ -515,6 +515,7 @@ profile·viewport·network 조건에서 비교한다. 준비 실행 1회를 제�
 - RSC cache miss에서는 RSC와 `/home` 요청이 한 번씩만 발생하고 browser의 별도 `/home`
   요청은 없다.
 - mutation과 자녀 전환 뒤 최신 서버 상태가 보인다.
+- `router.refresh()` 중 기존 본문이 유지되고 흰 화면·전체 스켈레톤 깜빡임이 없다.
 - 다자녀 데이터나 다른 계정 데이터가 섞이지 않는다.
 - server error·offline·401에서 기존 복구 흐름이 유지된다.
 - lint, unit test, production build가 통과한다.
@@ -526,7 +527,7 @@ profile·viewport·network 조건에서 비교한다. 준비 실행 1회를 제�
 ## 13. QA 체크
 
 1. 신규 상태에서 앱 실행 후 기본 자녀 홈이 스켈레톤 없이 표시되는지 확인
-2. 기존 localStorage 선택 자녀가 cookie로 이관되고 잘못된 자녀가 노출되지 않는지 확인
+2. cookie 없는 기존 사용자가 localStorage와 무관하게 기본 자녀로 진입하는지 확인
 3. 홈→로드맵→홈을 3회 반복해 RSC와 `server_home` 요청 수 확인
 4. 홈→리포트→홈을 반복해 동일하게 확인
 5. 자녀 A→B→A 전환 중 이름·추천·리포트가 섞이지 않는지 확인
@@ -541,8 +542,8 @@ profile·viewport·network 조건에서 비교한다. 준비 실행 1회를 제�
 ## 14. 롤백
 
 DB migration과 API 계약 변경이 없으므로 web 구현 PR revert로 원복한다. server helper,
-cookie migration, 홈 Server Component 전환, mutation refresh를 독립 커밋으로 두어 문제가
-생긴 단계만 되돌릴 수 있게 한다.
+선택 자녀 cookie, 홈 Server Component 전환, mutation refresh를 독립 커밋으로 두어 문제가 생긴
+단계만 되돌릴 수 있게 한다.
 
 다음 중 하나가 발생하면 성능 이득과 무관하게 즉시 롤백한다.
 
